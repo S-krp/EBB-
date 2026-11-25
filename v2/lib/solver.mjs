@@ -30,6 +30,7 @@ export function solve(graph, input, notices = []) {
       }
       routes.push({
         destination: at, segments, path: [...visited], deliveredCost, netback, inletVolume: required,
+        fuelVolume: required - demand,
         margin, feasible: !segments.some(({ constrained }) => constrained),
       });
     }
@@ -40,6 +41,11 @@ export function solve(graph, input, notices = []) {
   walk(origin, new Set([origin]), []);
   const feasible = routes.filter((route) => route.feasible);
   const cheapest = feasible.reduce((best, route) => !best || route.deliveredCost < best.deliveredCost ? route : best, null);
+  const cheapestByDestination = Object.fromEntries(destinations.map(({ id }) => [id, null]));
+  for (const route of feasible) {
+    const best = cheapestByDestination[route.destination];
+    if (!best || route.deliveredCost < best.deliveredCost) cheapestByDestination[route.destination] = route;
+  }
   const bestNetback = feasible.reduce((best, route) => !best || route.netback > best.netback ? route : best, null);
-  return { routes, cheapest, bestNetback };
+  return { routes, cheapest, cheapestByDestination, bestNetback };
 }

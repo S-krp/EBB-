@@ -55,6 +55,34 @@ test("constrained routes stay visible and cheapest differs from best netback", (
   assert.throws(() => solve(seedGraph, { ...input, demand: 0 }), /positive delivered volume/);
 });
 
+test("each Gulf Coast delivery has its own cheapest feasible route and fuel requirement", () => {
+  const ofo = { board: "GCX", key: "GCX:1", title: "Imbalance OFO" };
+  const delaware = solve(seedGraph, input, [ofo]);
+  const { katy, hsc } = delaware.cheapestByDestination;
+  assert.deepEqual(katy.path, ["delaware", "waha", "katy"]);
+  assert.deepEqual(hsc.path, ["delaware", "waha", "agua-dulce", "hsc"]);
+  assert.equal(katy.deliveredCost.toFixed(5), "2.78083");
+  assert.equal(hsc.deliveredCost.toFixed(5), "2.98792");
+  assert.equal(hsc.inletVolume.toFixed(5), "36291.89869");
+  assert.equal(hsc.fuelVolume.toFixed(5), "1291.89869");
+  assert.deepEqual(hsc.segments.flatMap(({ ofos }) => ofos), [ofo]);
+  assert.ok(katy.segments.every(({ ofos }) => ofos.length === 0));
+
+  const wahaInput = { ...input, origin: "waha" };
+  const waha = solve(seedGraph, { ...wahaInput, demand: 20000 });
+  assert.equal(waha.cheapestByDestination.katy.deliveredCost.toFixed(5), "2.63959");
+  assert.deepEqual(waha.cheapestByDestination.hsc.path, ["waha", "katy", "hsc"]);
+  assert.equal(waha.cheapestByDestination.hsc.deliveredCost.toFixed(5), "2.77346");
+  assert.equal(waha.cheapestByDestination.hsc.fuelVolume.toFixed(5), "406.60154");
+
+  const constrained = solve(seedGraph, { ...wahaInput, demand: 40000 });
+  assert.ok(constrained.cheapestByDestination.katy);
+  assert.equal(constrained.cheapestByDestination.hsc, null);
+  const southTexas = constrained.routes.find(({ path }) => path.includes("agua-dulce"));
+  assert.deepEqual(southTexas.segments.filter(({ constrained }) => constrained).map(({ id }) => id), ["agua-hsc"]);
+  assert.equal(southTexas.segments.find(({ id }) => id === "agua-hsc").required.toFixed(2), "40404.04");
+});
+
 test("only fresh normalized OAC replaces illustrative capacity and can block a route", async () => {
   const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, new Set(seedGraph.edges.map(({ id }) => id)), now,
     jsonFeed({ segments: [
