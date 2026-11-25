@@ -36,6 +36,7 @@ export async function readNotices(env, boards, now, fetcher = fetch) {
     !(Date.parse(row.effectiveThrough) < now),
   ).map((row) => ({
     key: `${row.board}:${row.id}:${row.hash ?? row.title}`, board: row.board, title: row.title,
+    body: typeof row.body === "string" ? row.body : "",
     sourceUrl: webUrl(row.sourceUrl), effectiveFrom: row.effectiveFrom ?? null,
     effectiveThrough: row.effectiveThrough ?? null,
     upcoming: Date.parse(row.effectiveFrom) > now,

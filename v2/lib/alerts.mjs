@@ -5,11 +5,11 @@ export function alertTracker({ webhookUrl, fetcher = fetch, log = console } = {}
   const previous = new Map();
   const pending = new Map();
   const recent = new Map();
-  function add(alert) {
+  function add(alert, body) {
     if (seen.has(alert.id)) return;
     seen.add(alert.id);
     pending.set(alert.id, alert);
-    recent.set(alert.id, alert);
+    recent.set(alert.id, body ? { ...alert, body } : alert);
     if (recent.size > 25) recent.delete(recent.keys().next().value);
   }
 
@@ -19,7 +19,7 @@ export function alertTracker({ webhookUrl, fetcher = fetch, log = console } = {}
     },
     async observe(notices, capacity, now) {
       const observedAt = new Date(now).toISOString();
-      for (const notice of notices) add({ ...notice, id: `ofo:${notice.key}`, type: "ofo", observedAt });
+      for (const { body, ...notice } of notices) add({ ...notice, id: `ofo:${notice.key}`, type: "ofo", observedAt }, body);
       for (const row of capacity) {
         const prior = previous.get(row.edgeId);
         if (prior && row.asOf <= prior.asOf) continue;
