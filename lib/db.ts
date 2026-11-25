@@ -30,6 +30,7 @@ async function connect() {
       await client.begin(async (transaction) => {
         await transaction`SELECT pg_advisory_xact_lock(662751904)`;
         for (const statement of initialSchema) await transaction.unsafe(statement);
+        await transaction`ALTER TABLE notices ADD COLUMN IF NOT EXISTS body_blocks TEXT`;
       });
       return { kind: "pg" as const, db: drizzlePg(client) };
     } catch (error) {
@@ -43,6 +44,9 @@ async function connect() {
   const client = new DatabaseSync(filename);
   client.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   for (const statement of initialSchema) client.exec(statement);
+  if (!(client.prepare("PRAGMA table_info(notices)").all() as { name: string }[]).some((column) => column.name === "body_blocks")) {
+    client.exec("ALTER TABLE notices ADD COLUMN body_blocks TEXT");
+  }
   function execute(query: string, params: SQLInputValue[], method: Parameters<AsyncRemoteCallback>[2]) {
     const statement = client.prepare(query);
     if (method === "run") {
@@ -93,7 +97,8 @@ export async function readFeed() {
       connection.db.select().from(sqlite.status).all(),
     ]);
   const notices: Notice[] = rows.map((row) => ({
-    ...row, critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
+    ...row, bodyBlocks: row.bodyBlocks ? JSON.parse(row.bodyBlocks) : undefined,
+    critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
   }));
   return { notices, status };
 }
@@ -116,7 +121,7 @@ function cacheDiffers(table: typeof pg.notices | typeof sqlite.notices, row: Ret
 
 export async function saveBoard(notices: Notice[], status: BoardStatus) {
   const connection = await database();
-  const rows = notices.map((notice) => ({ ...notice, ...cachedFields(notice) }));
+  const rows = notices.map((notice) => ({ ...notice, bodyBlocks: notice.bodyBlocks ? JSON.stringify(notice.bodyBlocks) : null, ...cachedFields(notice) }));
   const { board, lastSuccess, ...result } = status;
   if (connection.kind === "pg") {
     await connection.db.transaction(async (tx) => {

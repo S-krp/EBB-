@@ -26,7 +26,11 @@ export type RawNotice = {
   effectiveThrough: string | null;
   sourceUrl: string;
   body: string;
+  bodyBlocks?: NoticeBlock[];
 };
+
+export type NoticeCell = { text: string; header: boolean; colSpan: number; rowSpan: number };
+export type NoticeBlock = { type: "text"; text: string } | { type: "table"; rows: NoticeCell[][] };
 
 export type Notice = RawNotice & { hash: string; category: Category; emergency: boolean; tolerances: string[] };
 

@@ -55,7 +55,7 @@ export function normalize(raw: RawNotice): Notice {
   const critical = !lifted && (raw.critical || emergency || category === "OFO" || category === "Force Majeure");
   const hash = createHash("sha256").update(JSON.stringify([
     raw.board, raw.pipeline, raw.id, raw.title, raw.sourceType, raw.critical, raw.postedAt,
-    raw.effectiveFrom, raw.effectiveThrough, raw.sourceUrl, raw.body, category, critical, emergency, tolerances,
+    raw.effectiveFrom, raw.effectiveThrough, raw.sourceUrl, raw.body, category, critical, emergency, tolerances, raw.bodyBlocks,
   ])).digest("hex");
   return { ...raw, critical, category, emergency, tolerances, hash };
 }

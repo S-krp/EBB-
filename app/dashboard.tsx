@@ -47,16 +47,33 @@ function Source({ url, title }: { url: string; title: string }) {
   return <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open source for ${title}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-soft hover:text-signal">Source <ArrowUpRight size={13} /></a>;
 }
 
+function NoticeBody({ notice }: { notice: Notice }) {
+  if (!notice.bodyBlocks?.length) return <p className="whitespace-pre-wrap wrap-anywhere">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>;
+  return <div className="space-y-5">{notice.bodyBlocks.map((block, index) => block.type === "text"
+    ? <p key={index} className="whitespace-pre-wrap wrap-anywhere">{block.text}</p>
+    : <div key={index} role="region" aria-label={`Notice table ${index + 1}`} tabIndex={0} className="overflow-x-auto rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-signal">
+      <table className="w-full border-collapse text-left text-sm leading-6" aria-label={`${notice.title} — table ${index + 1}`}>
+        <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-line last:border-b-0 even:bg-inset">{row.map((cell, cellIndex) => {
+          const Cell = cell.header ? "th" : "td";
+          return <Cell key={cellIndex} colSpan={cell.colSpan} rowSpan={cell.rowSpan} className={`min-w-24 border-r border-line px-4 py-3 align-top whitespace-pre-line last:border-r-0 ${cell.header ? "bg-inset font-bold text-slate-100" : "text-slate-200"}`}>{cell.text}</Cell>;
+        })}</tr>)}</tbody>
+      </table>
+    </div>)}</div>;
+}
+
 function Drawer({ notice, position, total, step, close }: { notice: Notice; position: number; total: number; step: (delta: number) => void; close: () => void }) {
   const element = useRef<HTMLDialogElement>(null);
   useEffect(() => { element.current?.showModal(); }, []);
-  useEffect(() => { element.current?.scrollTo({ top: 0 }); }, [notice]);
+  useEffect(() => {
+    element.current?.scrollTo({ top: 0 });
+    element.current?.querySelectorAll('[role="region"]').forEach((region) => region.scrollTo({ left: 0 }));
+  }, [notice]);
   const pager = "grid size-11 shrink-0 place-items-center rounded-md border border-line text-soft hover:text-white disabled:opacity-40";
   return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) close(); }} aria-labelledby="notice-title"
     onKeyDown={(event) => {
-      if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
+      if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !(event.target as HTMLElement).closest('[role="region"]')) { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
     }}
-    className="m-0 ml-auto h-dvh max-h-none w-full max-w-[640px] border-l border-line bg-panel text-slate-100 backdrop:bg-black/65">
+    className="m-0 ml-auto h-dvh max-h-none w-full max-w-[1200px] overflow-x-hidden border-l border-line bg-panel text-slate-100 backdrop:bg-black/65">
     <div className="min-h-full px-5 py-5 sm:px-9 sm:py-7">
       <div className="mb-4 flex items-center justify-between gap-2 sm:mb-6 sm:gap-4">
         <div className="font-mono text-xs tracking-widest wrap-anywhere text-signal">NOTICE / #{notice.id}</div>
@@ -76,7 +93,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
         </div>)}
       </dl>
       <h3 className="mb-3 text-sm font-bold">Notice text</h3>
-      <p className="text-base leading-relaxed wrap-anywhere whitespace-pre-wrap text-slate-200">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>
+      <div className="text-base leading-relaxed text-slate-200"><NoticeBody notice={notice} /></div>
       <a href={notice.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-8 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-bold text-signal hover:bg-inset">Open original posting <ExternalLink size={14} /></a>
     </div>
   </dialog>;
