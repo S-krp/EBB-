@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cycleClock } from "../lib/cycles.mjs";
 import { dashboardTabs, tabForKey } from "../lib/dashboard-tabs.mjs";
 import { corridorGraph } from "../lib/graph.mjs";
@@ -225,6 +225,7 @@ export default function Dashboard() {
   const [feedError, setFeedError] = useState("");
   const [solveError, setSolveError] = useState("");
   const [busy, setBusy] = useState(false);
+  const scenarioVersion = useRef(0);
   const graph = snapshot?.graph ?? corridorGraph;
   const origins = graph.nodes.filter(({ kind }) => ["receipt", "interconnect"].includes(kind));
   const markets = graph.nodes.filter(({ kind }) => kind === "delivery");
@@ -256,8 +257,16 @@ export default function Dashboard() {
     return () => { controller.abort(); clearInterval(pollTimer); };
   }, []);
 
+  function invalidateScenario() {
+    scenarioVersion.current += 1;
+    setEvaluation(null);
+    setSelectedRouteKey("");
+    setSolveError("");
+  }
+
   async function submit(event) {
     event.preventDefault();
+    const submittedVersion = ++scenarioVersion.current;
     setBusy(true);
     setSolveError("");
     const values = new FormData(event.currentTarget);
@@ -270,13 +279,16 @@ export default function Dashboard() {
         }),
       });
       const data = await response.json();
+      if (submittedVersion !== scenarioVersion.current) return;
       if (!response.ok) throw new Error(data.error);
       const { result, ...current } = data;
       setSnapshot(current);
       setEvaluation({ ...current, result });
       setSelectedRouteKey(routeKey(result.bestNetback));
     } catch (error) {
-      setSolveError(error.message || "Could not calculate routes.");
+      if (submittedVersion === scenarioVersion.current) {
+        setSolveError(error.message || "Could not calculate routes.");
+      }
     } finally {
       setBusy(false);
     }
@@ -314,7 +326,7 @@ export default function Dashboard() {
       <p className="eyebrow">03 / Routing desk</p>
       <h2>Run a netback scenario</h2>
       <p className="muted">Prices are scenario inputs, not live market quotes. Rankings can include routes with unverified capacity.</p>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onChange={invalidateScenario}>
         <label>Origin<select name="origin" defaultValue="delaware">{origins.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label>Supply · $/Dth<input name="supply" type="number" inputMode="decimal" step="any" defaultValue="2.25" required /></label>
         <label>Delivered · Dth/day<input name="volume" type="number" inputMode="decimal" min="0.01" step="any" defaultValue="35000" required /></label>
