@@ -5,8 +5,8 @@ export const cycles = [
   { name: "ID1", hour: 10, minute: 0, nextGasDay: false },
   { name: "Timely", hour: 13, minute: 0, nextGasDay: true },
   { name: "ID2", hour: 14, minute: 30, nextGasDay: false },
+  { name: "Evening", hour: 18, minute: 0, nextGasDay: true },
   { name: "ID3", hour: 19, minute: 0, nextGasDay: false },
-  { name: "Evening", hour: 20, minute: 0, nextGasDay: true },
 ];
 
 export function cycleClock(now = new Date()) {

@@ -90,10 +90,11 @@ test("v1 feed reports partial coverage and keeps only relevant non-expired OFOs"
 
 test("all five Central deadlines roll over in DST and track the intended gas day", () => {
   const next = cycleClock(new Date(now));
-  assert.deepEqual(next.map(({ name }) => name), ["ID2", "ID3", "Evening", "ID1", "Timely"]);
+  assert.deepEqual(next.map(({ name }) => name), ["ID2", "Evening", "ID3", "ID1", "Timely"]);
   assert.equal(next[0].deadline, "2026-07-20T14:30:00.000-05:00");
   assert.equal(next[0].remainingMs, 90 * 60000);
-  assert.deepEqual(next.map(({ gasDay }) => gasDay), ["2026-07-20", "2026-07-20", "2026-07-21", "2026-07-21", "2026-07-22"]);
+  assert.equal(next[1].deadline, "2026-07-20T18:00:00.000-05:00");
+  assert.deepEqual(next.map(({ gasDay }) => gasDay), ["2026-07-20", "2026-07-21", "2026-07-20", "2026-07-21", "2026-07-22"]);
   assert.equal(cycleClock(new Date("2026-03-08T02:30:00Z"))[0].deadline, "2026-03-08T10:00:00.000-05:00");
 });
 

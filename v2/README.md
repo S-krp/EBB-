@@ -17,7 +17,7 @@ Open [http://localhost:3001](http://localhost:3001). This runs separately from v
 
 - The sample network covers Delaware Basin, Waha, Agua Dulce, Katy-area storage, Katy and Houston Ship Channel. Topology (including connectors and storage), tariffs, fuel fractions and any unreported capacities are **illustrative**, not nomination or trading inputs.
 - The solver prices a single directed path at a time. It grosses up from delivered volumes by each segment's fuel retention, charges each tariff on segment inlet volume, and compares required inlet flow with that segment’s OAC. Delivered cost is total gas purchase plus transport divided by delivered volume. Netback is downstream revenue minus transport divided by origin inlet volume (the break-even origin price). Neither split flows nor contractual entitlements are modeled.
-- Nomination deadlines use America/Chicago local time: Timely 1:00 p.m. and Evening 8:00 p.m. (next gas day); ID1 10:00 a.m., ID2 2:30 p.m., ID3 7:00 p.m. (same gas day). Verify operator-specific deadlines before scheduling.
+- Nomination deadlines use America/Chicago local time: Timely 1:00 p.m. and Evening 6:00 p.m. (next gas day); ID1 10:00 a.m., ID2 2:30 p.m., ID3 7:00 p.m. (same gas day). Verify operator-specific deadlines before scheduling.
 
 ## Optional services
 
