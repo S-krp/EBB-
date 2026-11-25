@@ -33,3 +33,8 @@ export const lock = sqliteTable("sweep_lock", {
   owner: text("owner").notNull(),
   expires: text("expires").notNull(),
 });
+
+export const meta = sqliteTable("feed_meta", {
+  name: text("name").primaryKey().notNull(),
+  value: text("value").notNull(),
+});

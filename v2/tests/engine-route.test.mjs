@@ -10,7 +10,7 @@ test("route scenarios show upcoming OFOs and capacity constraints before the Eve
   const notice = { board: "PHP", category: "OFO", sourceUrl: "https://example.com/board" };
   const katySegment = "php-katy-oasis";
   t.mock.method(globalThis, "fetch", async (url) => {
-    if (url === process.env.V1_NOTICE_FEED_URL) {
+    if (url === `${process.env.V1_NOTICE_FEED_URL}?category=OFO`) {
       return Response.json({
         status: [{ board: "PHP", lastSuccess: iso(now) }],
         notices: [
