@@ -128,6 +128,8 @@ export default function Dashboard() {
   const [chosenView, setView] = useState<"table" | "cards" | null>(null);
   const view = chosenView ?? (isNarrow ? "cards" : "table");
   const [selected, setSelected] = useState<Notice | null>(null);
+  const selectedLauncher = useRef<HTMLButtonElement>(null);
+  const feedHeading = useRef<HTMLHeadingElement>(null);
   const [page, setPage] = useState(1);
 
   function updateFilters(changes: Partial<NoticeFilters>) {
@@ -165,7 +167,12 @@ export default function Dashboard() {
   const notices = useMemo(() => snapshot?.notices ?? [], [snapshot]);
   const noticeIndex = useMemo(() => indexNotices(notices), [notices]);
   const filtered = useMemo(() => filterNotices(noticeIndex, filters), [noticeIndex, filters]);
-  const selectedIndex = selected ? filtered.findIndex((notice) => noticeKey(notice) === noticeKey(selected)) : -1;
+  const selectedKey = selected ? noticeKey(selected) : null;
+  const selectedIndex = selectedKey ? filtered.findIndex((notice) => noticeKey(notice) === selectedKey) : -1;
+  const closeDrawer = () => {
+    if (document.activeElement === document.body) (selectedLauncher.current ?? feedHeading.current)?.focus();
+    setSelected(null);
+  };
   const stepSelected = (delta: number) => {
     const next = filtered[selectedIndex + delta];
     if (selectedIndex < 0 || !next) return;
@@ -232,7 +239,7 @@ export default function Dashboard() {
 
       <section aria-labelledby="notice-feed" className="overflow-hidden rounded-lg border border-line bg-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
-          <div className="flex items-center gap-2.5"><h2 id="notice-feed" className="text-base font-bold">Live Notice Feed</h2><span className="rounded-full bg-signal/10 px-2 py-0.5 font-mono text-xs text-signal">{filtered.length}</span></div>
+          <div className="flex items-center gap-2.5"><h2 id="notice-feed" ref={feedHeading} tabIndex={-1} className="text-base font-bold">Live Notice Feed</h2><span className="rounded-full bg-signal/10 px-2 py-0.5 font-mono text-xs text-signal">{filtered.length}</span></div>
           <div aria-label="Feed layout" className="flex rounded-md border border-line bg-inset p-0.5">
             {(["table", "cards"] as const).map((option) => {
               const Icon = option === "table" ? List : LayoutGrid;
@@ -275,7 +282,7 @@ export default function Dashboard() {
             <td className="hidden px-4 py-3 wrap-anywhere lg:table-cell"><div className="text-xs font-bold">{notice.pipeline}</div><div className="mt-1 font-mono text-xs text-faint">#{notice.id}</div></td>
             <td className="px-3 py-3 wrap-anywhere lg:px-4">
               <div className="mb-1 text-xs text-soft lg:hidden">{notice.pipeline} <span className="font-mono text-faint">#{notice.id}</span></div>
-              <button type="button" className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button>
+              <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button>
               <div className="mt-2 space-y-1 text-xs text-soft lg:hidden">
                 <div>Effective: {windowLabel(notice)}</div>
                 <div>Posted: {stamp(notice.postedAt)} CT</div>
@@ -290,7 +297,7 @@ export default function Dashboard() {
         </table>
         : <div className="grid gap-3 p-3 md:grid-cols-2 md:p-4 xl:grid-cols-3">{visible.map((notice) => <article key={noticeKey(notice)} className={`flex min-w-0 flex-col gap-2 rounded-lg border border-line border-l-2 bg-inset p-3 wrap-anywhere sm:p-4 ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : ""}`}>
           <div className="flex justify-between gap-2 text-xs text-soft"><span>{notice.pipeline}</span><span className="font-mono">#{notice.id}</span></div>
-          <button type="button" className="text-left text-base font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
+          <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-base font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
           <Badge notice={notice} />
           <div className="mt-auto flex flex-wrap justify-between gap-1 border-t border-line pt-2 text-xs text-soft"><span>Effective: {windowLabel(notice)}</span><span>Posted: {stamp(notice.postedAt)} CT</span><Source url={notice.sourceUrl} title={notice.title} /></div>
         </article>)}</div>}
@@ -304,6 +311,6 @@ export default function Dashboard() {
       </section>
       <footer className="flex flex-wrap justify-between gap-2 text-xs text-faint"><span>EBB Watch · Public informational postings</span><span>All displayed times are Central Time · Verify critical details at the source.</span></footer>
     </main>
-    {selected && <Drawer notice={selected} position={selectedIndex} total={filtered.length} step={stepSelected} close={() => setSelected(null)} />}
+    {selected && <Drawer notice={selected} position={selectedIndex} total={filtered.length} step={stepSelected} close={closeDrawer} />}
   </>;
 }
