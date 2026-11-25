@@ -25,7 +25,7 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
   while (body.includes(delimiter)) delimiter += "_";
   const tableBlocks: NoticeBlock[] = [];
   tables.each((index, table) => {
-    const span = (value: string | undefined) => Math.max(1, Math.min(100, Number.parseInt(value || "1", 10) || 1));
+    const span = (value: string | undefined, max: number) => Math.max(1, Math.min(max, Number.parseInt(value || "1", 10) || 1));
     const rows = $(table).find("tr").filter((_, row) => $(row).closest("table")[0] === table).toArray().map((row) =>
       $(row).children("td, th").toArray().map((cell) => {
         const fragment = load("<div data-cell></div>");
@@ -34,10 +34,13 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
         return {
           text: nested.body, ...(nested.bodyBlocks ? { blocks: nested.bodyBlocks } : {}),
           header: cell.tagName === "th" || $(cell).find("b, strong").length > 0,
-          colSpan: span($(cell).attr("colspan")), rowSpan: span($(cell).attr("rowspan")),
+          colSpan: span($(cell).attr("colspan"), 1000),
+          // HTML rowspan=0 covers the rest of this row group, not later groups.
+          rowSpan: Math.min($(row).nextAll("tr").length + 1,
+            $(cell).attr("rowspan") === "0" ? Infinity : span($(cell).attr("rowspan"), 65534)),
         };
       }),
-    ).filter((row) => row.length);
+    );
     const caption = $(table).children("caption").text().trim();
     tableBlocks.push({ type: "table", ...(caption ? { caption } : {}), rows });
     $(table).replaceWith(`\n${delimiter}${index}${delimiter}\n`);
