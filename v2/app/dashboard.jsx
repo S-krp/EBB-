@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { cycleClock } from "../lib/cycles.mjs";
+import { dashboardTabs, tabForKey } from "../lib/dashboard-tabs.mjs";
 import { corridorGraph } from "../lib/graph.mjs";
 
 const volumes = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
@@ -202,6 +203,7 @@ function Alerts({ snapshot }) {
 }
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState(dashboardTabs[0].id);
   const [snapshot, setSnapshot] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
   const [selectedRouteKey, setSelectedRouteKey] = useState("");
@@ -265,20 +267,17 @@ export default function Dashboard() {
     }
   }
 
-  return <main>
-    <a className="skip-link" href="#solver">Skip to routing solver</a>
-    <header className="hero">
-      <p className="eyebrow">EBB Watch / Version 2 <span className="tag">Scenario MVP</span></p>
-      <h1>Permian Flow &amp; EBB Arbitrage Engine</h1>
-      <p>Compare Delaware and Waha routes to Katy Oasis, Agua Dulce and Houston Ship Channel.</p>
-      <p className="caution">Costs use published maximum interruptible rates and tariff fuel caps or fixed retention. These are benchmarks, not a shipper quote or a nomination recommendation.</p>
-    </header>
-    {feedError && <p role="status" className="warning">{feedError}{snapshot ? " Showing the last successful graph snapshot." : " Showing the public-source baseline."}</p>}
+  function navigateTabs(event) {
+    const next = tabForKey(activeTab, event.key);
+    if (!next) return;
+    event.preventDefault();
+    setActiveTab(next);
+    document.getElementById(`dashboard-tab-${next}`)?.focus();
+  }
+
+  const routes = <>
     <div className="top-grid">
-      <div className="rail">
-        <Clock />
-        <Alerts snapshot={snapshot} />
-      </div>
+      <Clock />
       <section className="panel topology">
         <p className="eyebrow">02 / Corridor topology</p>
         <h2>Delaware to the Gulf Coast</h2>
@@ -310,5 +309,39 @@ export default function Dashboard() {
       {solveError && <p role="alert" className="warning">{solveError}</p>}
       {evaluation && <Results evaluation={evaluation} busy={busy} activeRouteKey={routeKey(activeRoute)} onSelectRoute={setSelectedRouteKey} />}
     </section>
+  </>;
+
+  return <main>
+    <a className="skip-link" href={activeTab === "routes" ? "#solver" : "#dashboard-panel-notices"}>
+      {activeTab === "routes" ? "Skip to routing solver" : "Skip to OFO notices"}
+    </a>
+    <header className="hero">
+      <p className="eyebrow">EBB Watch / Version 2 <span className="tag">Scenario MVP</span></p>
+      <h1>Permian Flow &amp; EBB Arbitrage Engine</h1>
+      <p>Compare Delaware and Waha routes to Katy Oasis, Agua Dulce and Houston Ship Channel.</p>
+      <p className="caution">Costs use published maximum interruptible rates and tariff fuel caps or fixed retention. These are benchmarks, not a shipper quote or a nomination recommendation.</p>
+    </header>
+    {feedError && <p role="status" className="warning">{feedError}{snapshot ? " Showing the last successful graph snapshot." : " Showing the public-source baseline."}</p>}
+    <div className="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+      {dashboardTabs.map(({ id, label }) => <button
+        key={id}
+        id={`dashboard-tab-${id}`}
+        type="button"
+        role="tab"
+        aria-selected={activeTab === id}
+        aria-controls={`dashboard-panel-${id}`}
+        tabIndex={activeTab === id ? 0 : -1}
+        onClick={() => setActiveTab(id)}
+        onKeyDown={navigateTabs}
+      >{label}</button>)}
+    </div>
+    {dashboardTabs.map(({ id }) => <div
+      key={id}
+      id={`dashboard-panel-${id}`}
+      role="tabpanel"
+      aria-labelledby={`dashboard-tab-${id}`}
+      tabIndex={0}
+      hidden={activeTab !== id}
+    >{id === "routes" ? routes : <Alerts snapshot={snapshot} />}</div>)}
   </main>;
 }

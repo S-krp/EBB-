@@ -36,8 +36,14 @@ p { line-height: 1.48; }
 .warning { color: var(--warning); }
 .ok { color: var(--signal); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: clamp(14px, 2vw, 22px); min-width: 0; }
+.dashboard-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.dashboard-tabs button {
+  min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--inset); color: var(--soft); font-weight: bold; cursor: pointer;
+}
+.dashboard-tabs button[aria-selected="true"] { border-color: var(--signal); color: var(--signal); background: var(--panel); }
+.dashboard-tabs button:hover { color: var(--signal); }
 .top-grid { display: grid; grid-template-columns: minmax(255px, .78fr) minmax(0, 2.22fr); gap: 16px; align-items: start; }
-.rail { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .countdown { display: block; font-size: clamp(1.8rem, 3.6vw, 2.55rem); color: var(--signal); font-variant-numeric: tabular-nums; }
 .clock-list, .events { padding: 0; margin: 12px 0 0; list-style: none; }
 .clock-list li, .events li { padding: 9px 0; border-top: 1px solid var(--line); }
