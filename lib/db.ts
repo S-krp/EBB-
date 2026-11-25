@@ -140,6 +140,26 @@ export async function claimSweep(owner: string) {
   return acquired.length > 0;
 }
 
+const cooldownKey = "manual-sweep-cooldown";
+
+export async function sweepCooldownSeconds() {
+  const connection = await database();
+  const rows = connection.kind === "pg"
+    ? await connection.db.select().from(pg.lock).where(eq(pg.lock.name, cooldownKey))
+    : await connection.db.select().from(sqlite.lock).where(eq(sqlite.lock.name, cooldownKey)).all();
+  return rows.length ? Math.max(0, Math.ceil((Date.parse(rows[0].expires) - Date.now()) / 1000)) : 0;
+}
+
+export async function recordSweepFinish() {
+  const connection = await database();
+  const row = { name: cooldownKey, owner: "", expires: new Date(Date.now() + 300_000).toISOString() };
+  if (connection.kind === "pg") {
+    await connection.db.insert(pg.lock).values(row).onConflictDoUpdate({ target: pg.lock.name, set: row });
+  } else {
+    await connection.db.insert(sqlite.lock).values(row).onConflictDoUpdate({ target: sqlite.lock.name, set: row }).run();
+  }
+}
+
 export async function releaseSweep(owner: string) {
   const connection = await database();
   if (connection.kind === "pg") {
