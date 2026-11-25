@@ -37,7 +37,7 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
           colSpan: span($(cell).attr("colspan"), 1000),
           // HTML rowspan=0 covers the rest of this row group, not later groups.
           rowSpan: Math.min($(row).nextAll("tr").length + 1,
-            $(cell).attr("rowspan") === "0" ? Infinity : span($(cell).attr("rowspan"), 65534)),
+            Number.parseInt($(cell).attr("rowspan") || "1", 10) === 0 ? Infinity : span($(cell).attr("rowspan"), 65534)),
         };
       }),
     );

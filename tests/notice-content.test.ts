@@ -48,7 +48,7 @@ test("preserves a data table inside a layout cell", () => {
 });
 
 test("keeps empty rows covered by spans and resolves zero spans within their group", () => {
-  const table = contentFrom('<table><tbody><tr><td rowspan="0">A</td><td rowspan="2">B</td></tr><tr></tr><tr><td>C</td></tr></tbody><tbody><tr><td>D</td><td>E</td></tr></tbody></table>').bodyBlocks?.[0];
+  const table = contentFrom('<table><tbody><tr><td rowspan="00">A</td><td rowspan="2">B</td></tr><tr></tr><tr><td>C</td></tr></tbody><tbody><tr><td>D</td><td>E</td></tr></tbody></table>').bodyBlocks?.[0];
   assert.equal(table?.type, "table");
   if (table?.type !== "table") throw new Error("Missing table");
   assert.deepEqual(table.rows.map((row) => row.map((cell) => [cell.text, cell.rowSpan])), [[["A", 3], ["B", 2]], [], [["C", 1]], [["D", 1], ["E", 1]]]);
