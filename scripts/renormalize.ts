@@ -13,10 +13,7 @@ async function renormalize() {
     const end = notice.board === "TW" ? transwesternEndDate(notice.effectiveThrough) : notice.effectiveThrough;
     if (notice.board !== "LINK" && end === notice.effectiveThrough) continue;
     const next = normalize({ ...notice, critical: notice.board === "LINK" || notice.critical, effectiveThrough: end });
-    if (next.hash !== notice.hash) {
-      await updateCachedNotice(notice.hash, next);
-      updated++;
-    }
+    if (await updateCachedNotice(notice.hash, next)) updated++;
   }
   console.log(`Re-normalized ${updated} stored notices.`);
 }

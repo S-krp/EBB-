@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { and, eq, lt, ne, sql } from "drizzle-orm";
+import { and, eq, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle as drizzleSqlite, type AsyncRemoteCallback } from "drizzle-orm/sqlite-proxy";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -97,17 +97,31 @@ export async function readFeed() {
   return { notices, status };
 }
 
+function cachedFields(notice: Notice) {
+  return {
+    hash: notice.hash, category: notice.category, critical: Number(notice.critical), emergency: Number(notice.emergency),
+    tolerances: JSON.stringify(notice.tolerances), effectiveFrom: notice.effectiveFrom, effectiveThrough: notice.effectiveThrough,
+  };
+}
+
+function cacheDiffers(table: typeof pg.notices | typeof sqlite.notices, row: ReturnType<typeof cachedFields>) {
+  return or(
+    ne(table.hash, row.hash), ne(table.category, row.category), ne(table.critical, row.critical),
+    ne(table.emergency, row.emergency), ne(table.tolerances, row.tolerances),
+    sql`${table.effectiveFrom} IS DISTINCT FROM ${row.effectiveFrom}`,
+    sql`${table.effectiveThrough} IS DISTINCT FROM ${row.effectiveThrough}`,
+  );
+}
+
 export async function saveBoard(notices: Notice[], status: BoardStatus) {
   const connection = await database();
-  const rows = notices.map((notice) => ({
-    ...notice, critical: Number(notice.critical), emergency: Number(notice.emergency), tolerances: JSON.stringify(notice.tolerances),
-  }));
+  const rows = notices.map((notice) => ({ ...notice, ...cachedFields(notice) }));
   const { board, lastSuccess, ...result } = status;
   if (connection.kind === "pg") {
     await connection.db.transaction(async (tx) => {
       for (const row of rows) {
         await tx.insert(pg.notices).values(row).onConflictDoUpdate({
-          target: [pg.notices.board, pg.notices.pipeline, pg.notices.id], set: row, setWhere: ne(pg.notices.hash, row.hash),
+          target: [pg.notices.board, pg.notices.pipeline, pg.notices.id], set: row, setWhere: cacheDiffers(pg.notices, row),
         });
       }
       await tx.insert(pg.status).values(status).onConflictDoUpdate({
@@ -120,28 +134,25 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
         target: sqlite.status.board, set: { ...result, ...(lastSuccess ? { lastSuccess } : {}) },
       }),
       ...rows.map((row) => connection.db.insert(sqlite.notices).values(row).onConflictDoUpdate({
-          target: [sqlite.notices.board, sqlite.notices.pipeline, sqlite.notices.id], set: row, setWhere: ne(sqlite.notices.hash, row.hash),
+        target: [sqlite.notices.board, sqlite.notices.pipeline, sqlite.notices.id], set: row, setWhere: cacheDiffers(sqlite.notices, row),
       })),
     ]);
   }
 }
 
 export async function updateCachedNotice(previousHash: string, notice: Notice) {
-  if (previousHash === notice.hash) return;
   const connection = await database();
-  const result = {
-    hash: notice.hash, category: notice.category, critical: Number(notice.critical), emergency: Number(notice.emergency),
-    tolerances: JSON.stringify(notice.tolerances), effectiveThrough: notice.effectiveThrough,
-  };
-  if (connection.kind === "pg") {
-    await connection.db.update(pg.notices).set(result).where(and(
-      eq(pg.notices.board, notice.board), eq(pg.notices.pipeline, notice.pipeline), eq(pg.notices.id, notice.id), eq(pg.notices.hash, previousHash),
-    ));
-  } else {
-    await connection.db.update(sqlite.notices).set(result).where(and(
-      eq(sqlite.notices.board, notice.board), eq(sqlite.notices.pipeline, notice.pipeline), eq(sqlite.notices.id, notice.id), eq(sqlite.notices.hash, previousHash),
-    )).run();
+  const result = cachedFields(notice);
+  function matches(table: typeof pg.notices | typeof sqlite.notices) {
+    return and(
+      eq(table.board, notice.board), eq(table.pipeline, notice.pipeline), eq(table.id, notice.id), eq(table.hash, previousHash),
+      cacheDiffers(table, result),
+    );
   }
+  const updated = connection.kind === "pg"
+    ? await connection.db.update(pg.notices).set(result).where(matches(pg.notices)).returning({ id: pg.notices.id })
+    : await connection.db.update(sqlite.notices).set(result).where(matches(sqlite.notices)).returning({ id: sqlite.notices.id }).all();
+  return updated.length > 0;
 }
 
 export async function claimSweep(owner: string) {
