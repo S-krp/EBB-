@@ -98,7 +98,7 @@ form button[type="submit"]:hover:not(:disabled) { filter: brightness(1.06); }
 form button[type="submit"]:disabled { opacity: .6; cursor: wait; }
 .results { transition: opacity .15s ease; }
 .results.loading { opacity: .55; }
-.scores { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 10px; }
 .scores article { background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
 .scores article strong { color: var(--signal); font-size: 1.55rem; font-variant-numeric: tabular-nums; }
 .scores article small { font-size: .72rem; }

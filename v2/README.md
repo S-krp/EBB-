@@ -11,7 +11,7 @@ npm run build
 npm start
 ```
 
-Open [http://localhost:3001](http://localhost:3001). This runs separately from v1 on port 3000. Select an origin, enter the supply and destination prices in $/Dth and a desired delivered volume in Dth/day, and click **Compare routes**. Try the default scenario, then raise the volume to 100,000 to see constrained alternatives. The map highlights the best-netback route when one exists.
+Open [http://localhost:3001](http://localhost:3001). This runs separately from v1 on port 3000. Select an origin, enter the supply and destination prices in $/Dth and a desired delivered volume in Dth/day, and click **Compare routes**. The routing desk shows the cheapest feasible path (or no feasible path) for each destination and the origin volume and fuel retained for each candidate. Try the default scenario, then raise the volume to 100,000 to see constrained alternatives. The map highlights the best-netback route when one exists.
 
 ## What is modeled
 

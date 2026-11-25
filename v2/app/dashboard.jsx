@@ -102,16 +102,19 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
   const names = Object.fromEntries(graph.nodes.map(({ id, name }) => [id, name]));
   const routeName = (route) => route.path.map((id) => names[id]).join(" → ");
   const bestKey = routeKey(result.bestNetback);
-  const cheapKey = routeKey(result.cheapest);
   const stats = [
-    { name: "Cheapest delivered", route: result.cheapest, metric: "deliveredCost" },
-    { name: "Best origin netback", route: result.bestNetback, metric: "netback" },
+    ...graph.nodes.filter(({ kind }) => kind === "delivery").map(({ id, name }) => ({
+      id: `delivery:${id}`, name: `Cheapest to ${name}`, route: result.cheapestByDestination[id], metric: "deliveredCost",
+    })),
+    { id: "netback", name: "Best origin netback overall", route: result.bestNetback, metric: "netback" },
   ];
   return <div className={busy ? "results loading" : "results"} aria-live="polite" aria-busy={busy}>
     <p className="muted">Evaluated on the {formatTime(asOf)} snapshot · OFO feed {feeds.ofo}</p>
-    {result.cheapest ? <div className="scores">{stats.map(({ name, route, metric }) => <article key={name}>
-      <h3>{name}</h3><strong>{money(route[metric])}<small> / Dth</small></strong><p>{routeName(route)}</p>
-    </article>)}</div> : <p className="warning">No single route can deliver that volume under the modeled constraints.</p>}
+    <div className="scores">{stats.map(({ id, name, route, metric }) => <article key={id}>
+      <h3>{name}</h3>
+      {route ? <><strong>{money(route[metric])}<small> / Dth</small></strong><p>{routeName(route)}</p></>
+        : <p className="warning">No single route fits modeled OAC.</p>}
+    </article>)}</div>
     <div className="scroll"><table className="responsive-table routes-table">
       <caption>Candidate routes · select a route to highlight it on the map · OFOs are board-level cautions, not a blanket capacity cut</caption>
       <thead><tr>
@@ -119,11 +122,13 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
         <th className="num">Delivered / Dth</th>
         <th className="num">Netback / Dth</th>
         <th className="num">Margin / Dth</th>
+        <th className="num">Origin inlet / fuel (Dth/day)</th>
         <th>Constraints</th>
       </tr></thead>
       <tbody>{result.routes.map((route) => {
         const key = routeKey(route);
         const isActive = key === activeRouteKey;
+        const isCheapest = key === routeKey(result.cheapestByDestination[route.destination]);
         const ofos = [...new Map(route.segments.flatMap((segment) => segment.ofos).map((notice) => [notice.key, notice])).values()];
         return <tr key={key} className={isActive ? "active-route" : undefined}>
           <th scope="row">
@@ -132,13 +137,16 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
             </button>
             <span className="badges">
               {key === bestKey && <span className="badge signal">Best netback</span>}
-              {key === cheapKey && <span className="badge info">Cheapest</span>}
+              {isCheapest && <span className="badge info">Cheapest to destination</span>}
               {!route.feasible && <span className="badge warn">Constrained</span>}
             </span>
           </th>
           <td className="num" data-label="Delivered / Dth">{money(route.deliveredCost)}</td>
           <td className="num" data-label="Netback / Dth">{money(route.netback)}</td>
           <td className="num" data-label="Margin / Dth">{money(route.margin)}</td>
+          <td className="num" data-label="Origin inlet / fuel (Dth/day)">
+            <span>{volumes.format(route.inletVolume)} inlet<small>{volumes.format(route.fuelVolume)} retained</small></span>
+          </td>
           <td data-label="Constraints">
             <div className="constraints-cell">
               {route.feasible ? <span className="ok">Fits modeled OAC</span> : route.segments.filter(({ constrained }) => constrained).map((segment) =>
