@@ -30,6 +30,21 @@ test("links LINK notices using the portal route code rather than the listing abb
   assert.equal(result.notices[0].sourceUrl, "https://infopost.enbridge.com/noticedetails/AG/CRI/123");
 });
 
+test("retries a LINK pipeline response that times out once", async (t) => {
+  let pipelineCalls = 0;
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    if (url.includes("notices-listings")) return Response.json({
+      pipelines: [{ pipelineCode: "TE", pipelineName: "Texas Eastern", notices: [{ noticeId: "1" }] }],
+    });
+    if (++pipelineCalls === 1) throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    return Response.json({ Notices: { Notice: { "@Noticeid": "1", NoticeTitle: "TE Pipeline Conditions" } } });
+  });
+  const result = await scrapeBoard("LINK");
+  assert.deepEqual(result.errors, []);
+  assert.equal(pipelineCalls, 2);
+  assert.deepEqual(result.notices.map((notice) => notice.title), ["TE Pipeline Conditions"]);
+});
+
 test("omits LINK's default 90-day posting expiry but preserves actual end times", async (t) => {
   const record = {
     NoticeTitle: "TE Operational Flow Order -- EFF 11/25",

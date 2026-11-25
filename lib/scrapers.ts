@@ -21,10 +21,10 @@ export async function mapLimited<T>(items: readonly T[], concurrency: number, ru
   }));
 }
 
-async function request(url: string, options?: RequestInit) {
+async function request(url: string, options?: RequestInit, timeoutMs = 20_000) {
   let response: Response;
   try {
-    response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(20_000), ...options });
+    response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs), ...options });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`${new URL(url).hostname}: ${reason}`);
@@ -128,15 +128,27 @@ function linkEffectiveThrough(record: LinkNotice) {
   return end === defaultPostEnd ? null : end;
 }
 
+// Enbridge has no per-notice endpoint: each pipeline response carries every critical notice from the
+// last ~90 days with full HTML bodies (up to ~50 MB uncompressed), so it gets a longer budget and one retry.
+async function linkPipelineNotices(code: string) {
+  const url = `${enbridge}/api/notices?businessUnit=${code}&noticeType=CRI`;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await (await request(url, undefined, 60_000)).json() as { Notices?: { Notice?: LinkNotice | LinkNotice[] } };
+    } catch (error) {
+      if (attempt >= 2) throw error;
+    }
+  }
+}
+
 async function scrapeLink(collect: Collect) {
   await collect("critical listing", async () => {
     const index = await (await request(`${enbridge}/api/notices-listings?noticeType=CRI`)).json() as { pipelines: LinkListing[] };
     if (!Array.isArray(index.pipelines)) throw new Error("LINK pipelines missing from listing");
-    await mapLimited(index.pipelines.filter((pipeline) => pipeline.notices.length), 4, (pipeline) => collect(pipeline.pipelineCode, async () => {
+    await mapLimited(index.pipelines.filter((pipeline) => pipeline.notices.length), 2, (pipeline) => collect(pipeline.pipelineCode, async () => {
       const code = encodeURIComponent(pipeline.pipelineCode);
       const routeCode = encodeURIComponent(linkRouteCodes[pipeline.pipelineCode] ?? pipeline.pipelineCode);
-      const response = await (await request(`${enbridge}/api/notices?businessUnit=${code}&noticeType=CRI`)).json() as
-        { Notices?: { Notice?: LinkNotice | LinkNotice[] } };
+      const response = await linkPipelineNotices(code);
       const records = [response.Notices?.Notice ?? []].flat();
       const byId = new Map(records.map((record) => [record["@Noticeid"], record]));
       for (const { noticeId } of pipeline.notices) {
