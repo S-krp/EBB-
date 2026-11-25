@@ -4,6 +4,7 @@ import type { RawNotice } from "../lib/model";
 import { countNonLiftedOfos } from "../lib/notice-status";
 import { normalize, noticeDate } from "../lib/normalize";
 import { isScheduledHour, nextSweep } from "../lib/schedule";
+import { crons } from "../vercel.json";
 
 const notice: RawNotice = {
   board: "EPNG", pipeline: "El Paso Natural Gas", id: "123",
@@ -109,4 +110,22 @@ test("schedules in Central time across daylight saving and midnight", () => {
   assert.equal(isScheduledHour(new Date("2026-07-01T14:00:00Z")), true);
   assert.equal(isScheduledHour(new Date("2026-07-01T15:00:00Z")), false);
   assert.equal(isScheduledHour(new Date("2026-11-24T15:00:00Z")), true);
+});
+
+test("Vercel uses daily-only jobs and runs the four Central sweeps in CST and CDT", () => {
+  const hours = crons.map(({ path, schedule }) => {
+    assert.equal(path, "/api/cron");
+    const match = /^0 (\d{1,2}) \* \* \*$/.exec(schedule);
+    assert.ok(match);
+    return Number(match[1]);
+  });
+  for (const [date, expected] of [
+    ["2026-07-01", [3, 14, 18, 23]],
+    ["2026-11-24", [0, 4, 15, 19]],
+  ] as const) {
+    for (const minute of [0, 59]) {
+      const active = hours.filter((hour) => isScheduledHour(new Date(Date.parse(date) + (hour * 60 + minute) * 60_000)));
+      assert.deepEqual(active, expected);
+    }
+  }
 });

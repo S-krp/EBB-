@@ -41,10 +41,10 @@ Settings are documented in [`.env.example`](.env.example). Build checks: `npm ru
 
 ### Vercel
 
-1. Import the repository as a Next.js project with Node.js 24. Set `DATABASE_URL` to persistent PostgreSQL (use its pooled connection URL if provided), and set a strong random `CRON_SECRET`. SQLite does not persist on Vercel and is not supported there.
-2. Deploy to the default `.vercel.app` domain and click **Run sweep** to populate the database.
-3. Production scheduled deployments require a plan that supports more than one cron invocation per day (such as Vercel Pro). On a plan that does not, remove the cron entry and run sweeps manually or use Railway.
+1. Import this repository as two Next.js projects with Node.js 24. Use the repository root for **EBB Watch (v1)** and `v2` as the Root Directory for **Permian Flow (v2)**. Keep Vercel's system environment variables available and use the public production `.vercel.app` domains, without deployment authentication on those domains.
+2. For **v1**, in the Production environment set `DATABASE_URL` (or `POSTGRES_URL`) to a persistent PostgreSQL connection string; use a pooled URL if available. The app creates its tables on first use. SQLite is not supported on Vercel. Set a strong random `CRON_SECRET`; Vercel sends it as an Authorization Bearer token to `/api/cron`. Fluid compute is enabled to allow up to five minutes for a sweep. Deploy v1, then use **Run sweep** to populate the database and check that `/api/feed` returns JSON without signing in.
+3. For **v2**, set `V1_NOTICE_FEED_URL` in the Production environment to `https://<v1-production-domain>/api/feed`, then deploy. No Neo4j or capacity feed is required. See [v2's README](v2/README.md) for optional settings.
 
-Sweeps run at **09:00, 13:00, 18:00, and 22:00 America/Chicago**. The Railway/Node worker uses the timezone directly. Vercel schedules both UTC offsets and the authenticated endpoint skips the one that does not match Central local time, including on DST transitions. A database lease prevents overlapping manual and scheduled runs.
+Sweeps run at **09:00, 13:00, 18:00, and 22:00 America/Chicago**. The Railway/Node worker uses the timezone directly. Vercel uses one daily cron entry per candidate UTC hour, and the authenticated endpoint skips invocations outside the four Central hours. Each entry fits [Hobby's once-daily cron limit](https://vercel.com/docs/cron-jobs/usage-and-pricing), but Hobby can start a job anywhere within its scheduled hour; minute-level scheduling requires a plan that supports it. Cron jobs run against the production deployment only. A database lease prevents overlapping manual and scheduled runs.
 
 The dashboard and manual sweep button are public by default; configure deployment-level access controls before exposing a private instance.
