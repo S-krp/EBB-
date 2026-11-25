@@ -8,6 +8,7 @@ test("route scenarios show upcoming OFOs and capacity constraints before the Eve
   t.mock.timers.enable({ apis: ["Date"], now });
   t.mock.method(console, "info", () => {});
   const notice = { board: "PHP", category: "OFO", sourceUrl: "https://example.com/board" };
+  const katySegment = "php-katy-oasis";
   t.mock.method(globalThis, "fetch", async (url) => {
     if (url === process.env.V1_NOTICE_FEED_URL) {
       return Response.json({
@@ -21,7 +22,11 @@ test("route scenarios show upcoming OFOs and capacity constraints before the Eve
     }
     assert.equal(url, process.env.OAC_FEED_URL);
     return Response.json({
-      segments: [{ edgeId: "php-katy", oac: 1, asOf: iso(now), sourceUrl: notice.sourceUrl }],
+      segments: [
+        { edgeId: "agua-blanca-waha", oac: 50_000 },
+        { edgeId: katySegment, oac: 1 },
+        { edgeId: "gcx-agua-dulce-tejas", oac: 50_000 },
+      ].map((segment) => ({ ...segment, asOf: iso(now), sourceUrl: notice.sourceUrl })),
     });
   });
   const vars = {
@@ -37,7 +42,7 @@ test("route scenarios show upcoming OFOs and capacity constraints before the Eve
   const evaluate = async () => {
     const response = await POST(new Request("http://localhost/api/engine", {
       method: "POST",
-      body: JSON.stringify({ origin: "delaware", supplyPrice: 2.25, demand: 35000, markets: { katy: 3.1, hsc: 3.35 } }),
+      body: JSON.stringify({ origin: "delaware", supplyPrice: 2.25, demand: 35000, markets: { katy: 3.1, "agua-dulce": 3.1, hsc: 3.35 } }),
     }));
     assert.equal(response.status, 200);
     return response.json();
@@ -47,7 +52,7 @@ test("route scenarios show upcoming OFOs and capacity constraints before the Eve
   assert.deepEqual(first.cycles, snapshot.cycles);
   assert.equal(first.cycles[0].name, "Evening");
   assert.equal(first.cycles[0].remainingMs, 300_000);
-  const php = (evaluation) => evaluation.result.routes.flatMap(({ segments }) => segments).find(({ id }) => id === "php-katy");
+  const php = (evaluation) => evaluation.result.routes.flatMap(({ segments }) => segments).find(({ id }) => id === katySegment);
   assert.equal(php(first).constrained, true);
   assert.equal(php(first).capacitySource, "reported");
   assert.deepEqual(php(first).ofos.map(({ title, upcoming }) => [title, upcoming]), [

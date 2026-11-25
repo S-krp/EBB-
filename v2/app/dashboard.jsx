@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { cycleClock } from "../lib/cycles.mjs";
-import { seedGraph } from "../lib/graph.mjs";
+import { corridorGraph } from "../lib/graph.mjs";
 
 const volumes = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const dateFormat = new Intl.DateTimeFormat("en-US", {
@@ -19,7 +19,7 @@ function Corridor({ graph, route }) {
     <div className="diagram" tabIndex={0} role="region" aria-label="Corridor topology diagram">
       <svg viewBox="0 -26 800 304" role="img" aria-labelledby="corridor-title corridor-desc">
         <title id="corridor-title">Directed Permian corridor network</title>
-        <desc id="corridor-desc">Illustrative paths from Delaware Basin and Waha to Katy and Houston Ship Channel, via Katy-area storage or Agua Dulce. Segment details follow in the table.</desc>
+        <desc id="corridor-desc">Schematic from the Delaware Basin through Waha to Katy Oasis, Agua Dulce and the Houston Ship Channel pool via Lockhart. Segment details and sources follow in the table.</desc>
         <defs>
           <marker id="arrow" markerWidth="7" markerHeight="7" viewBox="0 0 10 10" refX="9" refY="5" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
@@ -50,7 +50,6 @@ function Corridor({ graph, route }) {
       <li><span className="swatch line-constrained" />Constrained</li>
       <li><span className="swatch dot-receipt" />Receipt</li>
       <li><span className="swatch dot-interconnect" />Interconnect</li>
-      <li><span className="swatch dot-storage" />Storage</li>
       <li><span className="swatch dot-delivery" />Delivery</li>
     </ul>
   </>;
@@ -83,23 +82,28 @@ function Clock() {
 }
 
 function SegmentTable({ graph }) {
-  const names = Object.fromEntries(graph.nodes.map(({ id, name }) => [id, name]));
   return <div className="scroll"><table className="responsive-table">
-    <caption>Segment inputs · tariffs and fuel are illustrative</caption>
+    <caption>Public Section 311 scenario inputs · system capacity is not operationally available capacity (OAC)</caption>
     <thead><tr>
-      <th>Segment</th>
-      <th className="num">Tariff / Dth</th>
-      <th className="num">Fuel</th>
+      <th>Segment and points</th>
+      <th>Max interruptible tariff / Dth and fuel basis</th>
+      <th>System capacity</th>
       <th className="num">OAC · Dth/day</th>
       <th className="num">Scheduled · Dth/day</th>
     </tr></thead>
     <tbody>{graph.edges.map((edge) => <tr key={edge.id}>
-      <th scope="row">{edge.name}<small>{names[edge.from]} → {names[edge.to]}</small></th>
-      <td className="num" data-label="Tariff / Dth">{money(edge.tariff)}</td>
-      <td className="num" data-label="Fuel">{(edge.fuel * 100).toFixed(1)}%</td>
+      <th scope="row">{edge.name}<small>{edge.points}</small>
+        <small><a href={edge.pointSourceUrl}>Point source</a>
+          {edge.deliverySourceUrl && <> · <a href={edge.deliverySourceUrl}>Delivery listing</a></>}
+          {edge.mapUrl && <> · <a href={edge.mapUrl}>System map</a></>}</small>
+      </th>
+      <td data-label="Tariff / Dth and fuel"><span>${edge.tariff.toFixed(4)} · {(edge.fuel * 100).toFixed(2)}%
+        <small>{edge.fuelBasis}</small><small><a href={edge.rateSourceUrl}>{edge.rateReference}</a></small>
+      </span></td>
+      <td data-label="System capacity"><a href={edge.designSourceUrl}>{edge.designCapacity}</a></td>
       <td className="num" data-label="OAC · Dth/day">
-        <span>{volumes.format(edge.capacity)}<small>{edge.capacitySource === "reported"
-          ? <a href={edge.capacityUrl}>Reported · {formatTime(edge.capacityAsOf)}</a> : "Illustrative"}</small></span>
+        <span>{edge.capacitySource === "reported" ? <>{volumes.format(edge.capacity)}
+          <small><a href={edge.capacityUrl}>Reported · {formatTime(edge.capacityAsOf)}</a></small></> : "Unverified"}</span>
       </td>
       <td className="num" data-label="Scheduled · Dth/day">{edge.scheduledVolume == null ? "—" : volumes.format(edge.scheduledVolume)}</td>
     </tr>)}</tbody>
@@ -121,8 +125,10 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
     <p className="muted">Evaluated on the {formatTime(asOf)} snapshot · OFO feed {feeds.ofo}</p>
     <div className="scores">{stats.map(({ id, name, route, metric }) => <article key={id}>
       <h3>{name}</h3>
-      {route ? <><strong>{money(route[metric])}<small> / Dth</small></strong><p>{routeName(route)}</p></>
-        : <p className="warning">No single route fits modeled OAC.</p>}
+      {route ? <>
+        <strong>{money(route[metric])}<small> / Dth</small></strong><p>{routeName(route)}</p>
+        {route.capacityStatus === "unverified" && <small className="warning">Capacity unverified</small>}
+      </> : <p className="warning">No path outside reported constraints.</p>}
     </article>)}</div>
     <div className="scroll"><table className="responsive-table routes-table">
       <caption>Candidate routes · select a route to highlight it on the map · OFOs are board-level cautions, not a blanket capacity cut</caption>
@@ -147,7 +153,7 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
             <span className="badges">
               {key === bestKey && <span className="badge signal">Best netback</span>}
               {isCheapest && <span className="badge info">Cheapest to destination</span>}
-              {!route.feasible && <span className="badge warn">Constrained</span>}
+              {route.capacityStatus === "constrained" && <span className="badge warn">Constrained</span>}
             </span>
           </th>
           <td className="num" data-label="Delivered / Dth">{money(route.deliveredCost)}</td>
@@ -158,9 +164,10 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
           </td>
           <td data-label="Constraints">
             <div className="constraints-cell">
-              {route.feasible ? <span className="ok">Fits modeled OAC</span> : route.segments.filter(({ constrained }) => constrained).map((segment) =>
+              {route.feasible ? <span className="ok">Fits reported OAC</span> : route.segments.filter(({ constrained }) => constrained).map((segment) =>
                 <span className="warning block" key={segment.id}>{segment.name}: {volumes.format(segment.required)} needed / {volumes.format(segment.capacity)} {segment.capacitySource}</span>
               )}
+              {route.segments.some(({ capacity }) => capacity === null) && <span className="warning block">Missing segment OAC</span>}
               {ofos.map((notice) => <span className="warning block" key={notice.key}>
                 {notice.upcoming ? "Upcoming OFO" : "OFO"} · {notice.board}: {notice.title}
                 {notice.upcoming && ` · Starts ${formatTime(notice.effectiveFrom)}`}
@@ -201,7 +208,7 @@ export default function Dashboard() {
   const [feedError, setFeedError] = useState("");
   const [solveError, setSolveError] = useState("");
   const [busy, setBusy] = useState(false);
-  const graph = snapshot?.graph ?? seedGraph;
+  const graph = snapshot?.graph ?? corridorGraph;
   const origins = graph.nodes.filter(({ kind }) => ["receipt", "interconnect"].includes(kind));
   const markets = graph.nodes.filter(({ kind }) => kind === "delivery");
 
@@ -263,10 +270,10 @@ export default function Dashboard() {
     <header className="hero">
       <p className="eyebrow">EBB Watch / Version 2 <span className="tag">Scenario MVP</span></p>
       <h1>Permian Flow &amp; EBB Arbitrage Engine</h1>
-      <p>Compare Delaware and Waha routes to Katy and Houston Ship Channel before the next nomination deadline.</p>
-      <p className="caution">Topology, tariffs, fuel and any unreported capacities are illustrative. Not for physical nominations or trading decisions.</p>
+      <p>Compare Delaware and Waha routes to Katy Oasis, Agua Dulce and Houston Ship Channel.</p>
+      <p className="caution">Costs use published maximum interruptible rates and tariff fuel caps or fixed retention. These are benchmarks, not a shipper quote or a nomination recommendation.</p>
     </header>
-    {feedError && <p role="status" className="warning">{feedError}{snapshot ? " Showing the last successful graph snapshot." : " Showing the illustrative graph."}</p>}
+    {feedError && <p role="status" className="warning">{feedError}{snapshot ? " Showing the last successful graph snapshot." : " Showing the public-source baseline."}</p>}
     <div className="top-grid">
       <div className="rail">
         <Clock />
@@ -276,17 +283,23 @@ export default function Dashboard() {
         <p className="eyebrow">02 / Corridor topology</p>
         <h2>Delaware to the Gulf Coast</h2>
         <p className="muted">
-          {snapshot?.backend ?? "Illustrative preview"}
+          {snapshot?.backend ?? "Public-source baseline"}
           {snapshot && ` · Snapshot ${formatTime(snapshot.asOf)}`}
-          {activeRoute && ` · Highlight: ${routeKey(activeRoute) === routeKey(evaluation?.result.bestNetback) ? "best netback" : activeRoute.feasible ? "selected route" : "constrained route"}`}
+          {activeRoute && ` · Highlight: ${routeKey(activeRoute) === routeKey(evaluation?.result.bestNetback) ? "best netback" : activeRoute.capacityStatus === "constrained" ? "constrained route" : "selected route"}`}
         </p>
         <Corridor graph={graph} route={activeRoute} />
         <SegmentTable graph={graph} />
+        <details>
+          <summary>What is not public or not verified</summary>
+          <p>Negotiated shipper charges, tier eligibility and path entitlements are contract-specific. Actual period fuel for Agua Blanca, PHP and GCX is not verified; the HPL path to its pool requires contract confirmation.</p>
+          <p>Point-to-point OAC and schedules are unverified without a current segment report. System design and open-season capacity do not fill the gap. Storage and unnamed Katy or Agua Dulce connectors are not modeled.</p>
+        </details>
       </section>
     </div>
     <section className="panel solver" id="solver">
       <p className="eyebrow">03 / Routing desk</p>
       <h2>Run a netback scenario</h2>
+      <p className="muted">Prices are scenario inputs, not live market quotes. Rankings can include routes with unverified capacity.</p>
       <form onSubmit={submit}>
         <label>Origin<select name="origin" defaultValue="delaware">{origins.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}</select></label>
         <label>Supply · $/Dth<input name="supply" type="number" inputMode="decimal" step="any" defaultValue="2.25" required /></label>

@@ -18,7 +18,7 @@ export function solve(graph, input, notices = []) {
         transportCost += required * edge.tariff;
         return {
           id: edge.id, name: edge.name, required, capacity: edge.capacity, capacitySource: edge.capacitySource,
-          constrained: required - edge.capacity > 1e-9,
+          constrained: edge.capacity !== null && required - edge.capacity > 1e-9,
           ofos: notices.filter((notice) => edge.board && notice.board === edge.board),
         };
       }).reverse();
@@ -28,10 +28,12 @@ export function solve(graph, input, notices = []) {
       if (![required, deliveredCost, netback, margin].every(Number.isFinite)) {
         throw new RangeError("Prices or volumes are too large to calculate this scenario.");
       }
+      const capacityStatus = segments.some(({ constrained }) => constrained) ? "constrained" :
+        segments.some(({ capacity }) => capacity === null) ? "unverified" : "fits-reported";
       routes.push({
         destination: at, segments, path: [...visited], deliveredCost, netback, inletVolume: required,
         fuelVolume: required - demand,
-        margin, feasible: !segments.some(({ constrained }) => constrained),
+        margin, capacityStatus, feasible: capacityStatus === "fits-reported",
       });
     }
     for (const edge of graph.edges) {
@@ -39,13 +41,13 @@ export function solve(graph, input, notices = []) {
     }
   }
   walk(origin, new Set([origin]), []);
-  const feasible = routes.filter((route) => route.feasible);
-  const cheapest = feasible.reduce((best, route) => !best || route.deliveredCost < best.deliveredCost ? route : best, null);
+  const candidates = routes.filter((route) => route.capacityStatus !== "constrained");
+  const cheapest = candidates.reduce((best, route) => !best || route.deliveredCost < best.deliveredCost ? route : best, null);
   const cheapestByDestination = Object.fromEntries(destinations.map(({ id }) => [id, null]));
-  for (const route of feasible) {
+  for (const route of candidates) {
     const best = cheapestByDestination[route.destination];
     if (!best || route.deliveredCost < best.deliveredCost) cheapestByDestination[route.destination] = route;
   }
-  const bestNetback = feasible.reduce((best, route) => !best || route.netback > best.netback ? route : best, null);
+  const bestNetback = candidates.reduce((best, route) => !best || route.netback > best.netback ? route : best, null);
   return { routes, cheapest, cheapestByDestination, bestNetback };
 }

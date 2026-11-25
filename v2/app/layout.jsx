@@ -2,7 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "Permian Flow & EBB Arbitrage Engine",
-  description: "An illustrative corridor graph, nomination clock, and delivered-cost and netback solver.",
+  description: "A public-source corridor graph, nomination clock, and delivered-cost and netback scenario solver.",
 };
 
 export default function RootLayout({ children }) {
