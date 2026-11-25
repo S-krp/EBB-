@@ -1,13 +1,13 @@
 "use client";
 
 import { Activity, AlertTriangle, ArrowDown, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, ExternalLink, LayoutGrid, List, Radio, RefreshCw, Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { boardIds, boards, categories, type BoardId, type Category, type Notice, type Snapshot } from "../lib/model";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { boardIds, boards, categories, type Category, type Notice, type Snapshot } from "../lib/model";
+import { emptyNoticeFilters, filterNotices, hasInvertedRange, indexNotices, readNoticeFilters, writeNoticeFilters, type NoticeFilters } from "../lib/notice-filters";
 
 const timezone = "America/Chicago";
 const dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: timezone, month: "short", day: "numeric", year: "numeric" });
 const timeFormat = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
-const filterDate = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" });
 
 const chips: Record<Category, string> = {
   OFO: "border-amber-400/35 bg-amber-400/10 text-amber-200",
@@ -86,6 +86,19 @@ function toggle<T>(list: T[], value: T) {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
+const filtersChanged = "noticefilterschange";
+const getFilterSearch = () => window.location.search;
+const getServerFilterSearch = () => "";
+
+function subscribeToFilterSearch(listener: () => void) {
+  window.addEventListener("popstate", listener);
+  window.addEventListener(filtersChanged, listener);
+  return () => {
+    window.removeEventListener("popstate", listener);
+    window.removeEventListener(filtersChanged, listener);
+  };
+}
+
 const heading = "font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-faint";
 const field = "rounded-md border border-line bg-inset px-2.5 py-2 text-xs text-soft";
 const noticeKey = (notice: Notice) => JSON.stringify([notice.board, notice.pipeline, notice.id]);
@@ -96,14 +109,22 @@ export default function Dashboard() {
   const [feedError, setFeedError] = useState("");
   const [manualMessage, setManualMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [query, setQuery] = useState("");
-  const [pipelines, setPipelines] = useState<BoardId[]>([]);
-  const [types, setTypes] = useState<Category[]>([]);
-  const [criticalOnly, setCriticalOnly] = useState(false);
-  const [range, setRange] = useState({ start: "", end: "" });
+  const filterSearch = useSyncExternalStore(subscribeToFilterSearch, getFilterSearch, getServerFilterSearch);
+  const filters = useMemo(() => readNoticeFilters(new URLSearchParams(filterSearch)), [filterSearch]);
+  const { query, pipelines, types, criticalOnly, range } = filters;
+  const invalidRange = hasInvertedRange(range);
   const [view, setView] = useState<"table" | "cards">("table");
   const [selected, setSelected] = useState<Notice | null>(null);
   const [page, setPage] = useState(1);
+
+  function updateFilters(changes: Partial<NoticeFilters>) {
+    const url = new URL(window.location.href);
+    writeNoticeFilters(url.searchParams, { ...filters, ...changes });
+    window.history.replaceState(null, "", url);
+    window.dispatchEvent(new Event(filtersChanged));
+    setPage(1);
+  }
+
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/feed", { cache: "no-store" });
@@ -138,21 +159,8 @@ export default function Dashboard() {
   }
 
   const notices = useMemo(() => snapshot?.notices ?? [], [snapshot]);
-  const filtered = useMemo(() => {
-    const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    return notices.filter((notice) => {
-      if (pipelines.length && !pipelines.includes(notice.board)) return false;
-      if (types.length && !types.includes(notice.category)) return false;
-      if (criticalOnly && !notice.critical) return false;
-      if (range.start || range.end) {
-        if (!notice.postedAt) return false;
-        const date = filterDate.format(new Date(notice.postedAt));
-        if ((range.start && date < range.start) || (range.end && date > range.end)) return false;
-      }
-      const text = `${notice.title}\n${notice.body}\n${notice.id}\n${notice.pipeline}`.toLowerCase();
-      return terms.every((term) => text.includes(term));
-    });
-  }, [criticalOnly, notices, pipelines, query, range, types]);
+  const noticeIndex = useMemo(() => indexNotices(notices), [notices]);
+  const filtered = useMemo(() => filterNotices(noticeIndex, filters), [noticeIndex, filters]);
   const selectedIndex = selected ? filtered.findIndex((notice) => noticeKey(notice) === noticeKey(selected)) : -1;
   const stepSelected = (delta: number) => {
     const next = filtered[selectedIndex + delta];
@@ -229,21 +237,22 @@ export default function Dashboard() {
         </div>
         <div className="space-y-3 border-b border-line px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="relative min-w-40 flex-1"><span className="sr-only">Search notices</span><Search size={15} className="absolute top-2.5 left-3 text-faint" /><input type="search" placeholder="Search headlines, notice text, or IDs…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} className={field + " w-full pl-9"} /></label>
-            <span className="flex items-center gap-2" aria-label="Posted date range"><CalendarDays size={15} className="text-faint" />
-              <input type="date" aria-label="Posted from" value={range.start} onChange={(event) => { setRange({ ...range, start: event.target.value }); setPage(1); }} className={field} />
+            <label className="relative min-w-40 flex-1"><span className="sr-only">Search notices</span><Search size={15} className="absolute top-2.5 left-3 text-faint" /><input type="search" placeholder="Search headlines, notice text, or IDs…" value={query} onChange={(event) => updateFilters({ query: event.target.value })} className={field + " w-full pl-9"} /></label>
+            <span role="group" aria-label="Posted (CT)" className="flex flex-wrap items-center gap-2"><CalendarDays size={15} className="text-faint" aria-hidden="true" /><span className="text-xs text-soft">Posted (CT)</span>
+              <input type="date" aria-label="Posted from (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.start} onChange={(event) => updateFilters({ range: { ...range, start: event.target.value } })} className={field} />
               <span className="text-xs text-faint">to</span>
-              <input type="date" aria-label="Posted through" value={range.end} onChange={(event) => { setRange({ ...range, end: event.target.value }); setPage(1); }} className={field} />
+              <input type="date" aria-label="Posted through (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.end} onChange={(event) => updateFilters({ range: { ...range, end: event.target.value } })} className={field} />
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2"><span className={heading + " w-16"}>Pipeline</span>{boardIds.map((id) => <button key={id} type="button" aria-pressed={pipelines.includes(id)} onClick={() => { setPipelines(toggle(pipelines, id)); setPage(1); }} className={`rounded-md border px-2.5 py-1 text-xs ${pipelines.includes(id) ? "border-signal/50 bg-signal/10 font-bold text-signal" : "border-line text-soft hover:text-white"}`}>{boards[id].label}</button>)}</div>
+          <div className="flex flex-wrap items-center gap-2"><span className={heading + " w-16"}>Pipeline</span>{boardIds.map((id) => <button key={id} type="button" aria-pressed={pipelines.includes(id)} onClick={() => updateFilters({ pipelines: toggle(pipelines, id) })} className={`rounded-md border px-2.5 py-1 text-xs ${pipelines.includes(id) ? "border-signal/50 bg-signal/10 font-bold text-signal" : "border-line text-soft hover:text-white"}`}>{boards[id].label}</button>)}</div>
           <div className="flex flex-wrap items-center gap-2"><span className={heading + " w-16"}>Type</span>
-            <button type="button" aria-pressed={criticalOnly} onClick={() => { setCriticalOnly(!criticalOnly); setPage(1); }} className={`rounded-md border px-2.5 py-1 text-xs ${criticalOnly ? "border-rose-400/40 bg-rose-400/10 text-rose-200" : "border-line text-soft hover:text-white"}`}>Critical only</button>
-            {categories.map((category) => <button key={category} type="button" aria-pressed={types.includes(category)} onClick={() => { setTypes(toggle(types, category)); setPage(1); }} className={`rounded-md border px-2.5 py-1 text-xs ${types.includes(category) ? chips[category] : "border-line text-soft hover:text-white"}`}>{category}</button>)}
-            {hasFilters && <button type="button" onClick={() => { setQuery(""); setPipelines([]); setTypes([]); setCriticalOnly(false); setRange({ start: "", end: "" }); setPage(1); }} className="ml-auto text-xs text-signal hover:underline">Clear filters</button>}
+            <button type="button" aria-pressed={criticalOnly} onClick={() => updateFilters({ criticalOnly: !criticalOnly })} className={`rounded-md border px-2.5 py-1 text-xs ${criticalOnly ? "border-rose-400/40 bg-rose-400/10 text-rose-200" : "border-line text-soft hover:text-white"}`}>Critical only</button>
+            {categories.map((category) => <button key={category} type="button" aria-pressed={types.includes(category)} onClick={() => updateFilters({ types: toggle(types, category) })} className={`rounded-md border px-2.5 py-1 text-xs ${types.includes(category) ? chips[category] : "border-line text-soft hover:text-white"}`}>{category}</button>)}
+            {hasFilters && <button type="button" onClick={() => updateFilters(emptyNoticeFilters)} className="ml-auto text-xs text-signal hover:underline">Clear filters</button>}
           </div>
         </div>
-        {!visible.length ? <div className="px-4 py-14 text-center text-sm text-soft">{snapshot ? hasFilters ? "No notices match these filters." : "No notices collected yet. Run a sweep to populate the feed." : feedError || "Loading the notice feed…"}</div>
+        {invalidRange ? <p id="posted-range-error" role="alert" className="px-4 py-14 text-center text-sm text-amber-200">The Posted from date must be on or before the Posted through date.</p>
+        : !visible.length ? <div className="px-4 py-14 text-center text-sm text-soft">{snapshot ? hasFilters ? "No notices match these filters." : "No notices collected yet. Run a sweep to populate the feed." : feedError || "Loading the notice feed…"}</div>
         : view === "table" ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm">
           <thead className={"border-b border-line bg-inset " + heading}><tr>
             <th scope="col" className="px-4 py-3">Pipeline / ID</th><th scope="col" className="px-4 py-3">Notice</th><th scope="col" className="px-4 py-3">Type</th><th scope="col" className="px-4 py-3">Effective dates</th><th scope="col" className="px-4 py-3"><span className="flex items-center gap-1">Posted (CT) <ArrowDown size={11} /></span></th><th scope="col" className="px-4 py-3">Original</th>
