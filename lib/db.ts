@@ -245,6 +245,25 @@ export async function claimSweep(owner: string) {
 }
 
 const cooldownKey = "manual-sweep-cooldown";
+const lastScheduledSlotKey = "last-scheduled-sweep";
+
+export async function scheduledSweepCompleted(slot: string) {
+  const connection = await database();
+  const rows = connection.kind === "pg"
+    ? await connection.db.select({ value: pg.meta.value }).from(pg.meta).where(eq(pg.meta.name, lastScheduledSlotKey))
+    : await connection.db.select({ value: sqlite.meta.value }).from(sqlite.meta).where(eq(sqlite.meta.name, lastScheduledSlotKey)).all();
+  return rows[0]?.value === slot;
+}
+
+export async function recordScheduledSweep(slot: string) {
+  const connection = await database();
+  const row = { name: lastScheduledSlotKey, value: slot };
+  if (connection.kind === "pg") {
+    await connection.db.insert(pg.meta).values(row).onConflictDoUpdate({ target: pg.meta.name, set: row });
+  } else {
+    await connection.db.insert(sqlite.meta).values(row).onConflictDoUpdate({ target: sqlite.meta.name, set: row }).run();
+  }
+}
 
 export async function sweepCooldownSeconds() {
   const connection = await database();

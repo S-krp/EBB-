@@ -14,5 +14,10 @@ export function nextSweep(now = new Date()) {
 }
 
 export function isScheduledHour(now = new Date()) {
-  return sweepHours.includes(DateTime.fromJSDate(now, { zone: centralZone }).hour);
+  return scheduledSweepSlot(now) !== null;
+}
+
+export function scheduledSweepSlot(now = new Date()) {
+  const local = DateTime.fromJSDate(now, { zone: centralZone });
+  return sweepHours.includes(local.hour) ? local.startOf("hour").toUTC().toISO() : null;
 }
