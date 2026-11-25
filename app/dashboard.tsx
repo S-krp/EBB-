@@ -128,6 +128,7 @@ export default function Dashboard() {
   const [chosenView, setView] = useState<"table" | "cards" | null>(null);
   const view = chosenView ?? (isNarrow ? "cards" : "table");
   const [selected, setSelected] = useState<Notice | null>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
   const selectedLauncher = useRef<HTMLButtonElement>(null);
   const feedHeading = useRef<HTMLHeadingElement>(null);
   const [page, setPage] = useState(1);
@@ -169,8 +170,14 @@ export default function Dashboard() {
   const filtered = useMemo(() => filterNotices(noticeIndex, filters), [noticeIndex, filters]);
   const selectedKey = selected ? noticeKey(selected) : null;
   const selectedIndex = selectedKey ? filtered.findIndex((notice) => noticeKey(notice) === selectedKey) : -1;
+  const openNotice = (notice: Notice, launcher: HTMLButtonElement | null) => {
+    opener.current = launcher;
+    setSelected(notice);
+  };
   const closeDrawer = () => {
-    if (document.activeElement === document.body) (selectedLauncher.current ?? feedHeading.current)?.focus();
+    const original = opener.current;
+    (original?.isConnected ? original : selectedLauncher.current ?? feedHeading.current)?.focus();
+    opener.current = null;
     setSelected(null);
   };
   const stepSelected = (delta: number) => {
@@ -278,11 +285,11 @@ export default function Dashboard() {
             <th scope="col" className="hidden w-[15%] px-4 py-3 lg:table-cell"><span className="flex items-center gap-1">Posted (CT) <ArrowDown size={11} /></span></th>
             <th scope="col" className="hidden w-[7rem] px-4 py-3 lg:table-cell">Original</th>
           </tr></thead>
-          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={() => setSelected(notice)} className={`cursor-pointer border-l-2 align-top hover:bg-inset lg:align-middle ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : "border-l-transparent"}`}>
+          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={(event) => openNotice(notice, event.currentTarget.querySelector("button"))} className={`cursor-pointer border-l-2 align-top hover:bg-inset lg:align-middle ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : "border-l-transparent"}`}>
             <td className="hidden px-4 py-3 wrap-anywhere lg:table-cell"><div className="text-xs font-bold">{notice.pipeline}</div><div className="mt-1 font-mono text-xs text-faint">#{notice.id}</div></td>
             <td className="px-3 py-3 wrap-anywhere lg:px-4">
               <div className="mb-1 text-xs text-soft lg:hidden">{notice.pipeline} <span className="font-mono text-faint">#{notice.id}</span></div>
-              <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button>
+              <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); openNotice(notice, event.currentTarget); }}>{notice.title}</button>
               <div className="mt-2 space-y-1 text-xs text-soft lg:hidden">
                 <div>Effective: {windowLabel(notice)}</div>
                 <div>Posted: {stamp(notice.postedAt)} CT</div>
@@ -297,7 +304,7 @@ export default function Dashboard() {
         </table>
         : <div className="grid gap-3 p-3 md:grid-cols-2 md:p-4 xl:grid-cols-3">{visible.map((notice) => <article key={noticeKey(notice)} className={`flex min-w-0 flex-col gap-2 rounded-lg border border-line border-l-2 bg-inset p-3 wrap-anywhere sm:p-4 ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : ""}`}>
           <div className="flex justify-between gap-2 text-xs text-soft"><span>{notice.pipeline}</span><span className="font-mono">#{notice.id}</span></div>
-          <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-base font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
+          <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-base font-bold hover:text-signal" onClick={(event) => openNotice(notice, event.currentTarget)}>{notice.title}</button>
           <Badge notice={notice} />
           <div className="mt-auto flex flex-wrap justify-between gap-1 border-t border-line pt-2 text-xs text-soft"><span>Effective: {windowLabel(notice)}</span><span>Posted: {stamp(notice.postedAt)} CT</span><Source url={notice.sourceUrl} title={notice.title} /></div>
         </article>)}</div>}
