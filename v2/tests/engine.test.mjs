@@ -19,7 +19,7 @@ test("the default graph isolates snapshots and cites the published benchmarks ra
   assert.equal(store.name, "In-memory");
   assert.deepEqual(graph, corridorGraph);
   assert.deepEqual(Object.fromEntries(graph.edges.map(({ id, tariff, fuel }) => [id, [tariff, fuel]])), {
-    "del-waha": [0.195, 0.0075], "php-katy": [0.5136, 0.045], "gcx-agua": [0.46, 0.04],
+    "agua-blanca-waha": [0.195, 0.0075], "php-katy-oasis": [0.5136, 0.045], "gcx-agua-dulce-tejas": [0.46, 0.04],
     "php-lockhart": [0.5136, 0.045], "hpl-hsc": [0.3125, 0.013],
   });
   for (const edge of graph.edges) {
@@ -57,10 +57,10 @@ test("unverified OAC permits cost comparisons without claiming routes are feasib
   const result = solve(corridorGraph, input, [ofo]);
   assert.equal(result.cheapest.destination, "agua-dulce");
   assert.equal(result.bestNetback.destination, "hsc");
-  assert.deepEqual(result.cheapest.segments.find(({ id }) => id === "gcx-agua").ofos, [ofo]);
+  assert.deepEqual(result.cheapest.segments.find(({ id }) => id === "gcx-agua-dulce-tejas").ofos, [ofo]);
   assert.deepEqual(result.bestNetback.path, ["delaware", "waha", "lockhart", "hsc"]);
   assert.ok(result.routes.every((route) => !route.feasible && route.capacityStatus === "unverified"));
-  const blocked = solve(withCapacity(corridorGraph, [{ edgeId: "del-waha", oac: 0 }]), input);
+  const blocked = solve(withCapacity(corridorGraph, [{ edgeId: "agua-blanca-waha", oac: 0 }]), input);
   assert.equal(blocked.cheapest, null);
   assert.equal(blocked.bestNetback, null);
   assert.ok(blocked.routes.every((route) => route.capacityStatus === "constrained"));
@@ -86,13 +86,13 @@ test("destination rankings preserve unverified paths and omit constrained paths"
 test("only fresh normalized OAC replaces unknown capacity and zero OAC can block a route", async () => {
   const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, new Set(corridorGraph.edges.map(({ id }) => id)), now,
     jsonFeed({ segments: [
-      { edgeId: "gcx-agua", oac: 0, scheduledVolume: 100, asOf: iso(now), sourceUrl },
-      { edgeId: "php-katy", oac: 0, asOf: iso(now - 13 * 3600000), sourceUrl },
+      { edgeId: "gcx-agua-dulce-tejas", oac: 0, scheduledVolume: 100, asOf: iso(now), sourceUrl },
+      { edgeId: "php-katy-oasis", oac: 0, asOf: iso(now - 13 * 3600000), sourceUrl },
     ] }));
   assert.equal(capacity.status, "partial");
   const graph = withCapacity(corridorGraph, capacity.rows);
-  assert.equal(graph.edges.find(({ id }) => id === "php-katy").capacitySource, "unreported");
-  const gcx = graph.edges.find(({ id }) => id === "gcx-agua");
+  assert.equal(graph.edges.find(({ id }) => id === "php-katy-oasis").capacitySource, "unreported");
+  const gcx = graph.edges.find(({ id }) => id === "gcx-agua-dulce-tejas");
   assert.equal(gcx.capacitySource, "reported");
   assert.equal(gcx.scheduledVolume, 100);
   const result = solve(graph, input);
@@ -101,15 +101,24 @@ test("only fresh normalized OAC replaces unknown capacity and zero OAC can block
 });
 
 test("a route fits reported OAC only when all its segments report enough capacity", () => {
-  const rows = [{ edgeId: "del-waha", oac: 50000 }, { edgeId: "php-katy", oac: 50000 }];
+  const rows = [{ edgeId: "agua-blanca-waha", oac: 50000 }, { edgeId: "php-katy-oasis", oac: 50000 }];
   const result = solve(withCapacity(corridorGraph, rows), input);
   assert.deepEqual(result.routes.filter(({ feasible }) => feasible).map(({ destination }) => destination), ["katy"]);
   assert.equal(result.routes.find(({ destination }) => destination === "katy").capacityStatus, "fits-reported");
 });
 
+test("old generic segment IDs cannot apply legacy OAC to the sourced routes", async () => {
+  const edgeIds = new Set(corridorGraph.edges.map(({ id }) => id));
+  const segments = ["del-waha", "php-katy", "gcx-agua"].map((edgeId) => ({ edgeId, oac: 0, asOf: iso(now), sourceUrl }));
+  const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, edgeIds, now, jsonFeed({ segments }));
+  assert.deepEqual(capacity.rows, []);
+  const result = solve(withCapacity(corridorGraph, capacity.rows), input);
+  assert.ok(result.routes.every(({ capacityStatus }) => capacityStatus === "unverified"));
+});
+
 test("routing retains the newest reported capacity through replays and expires old observations", async () => {
   const tracker = alertTracker({ log: { info() {} } });
-  const earlier = { edgeId: "gcx-agua", oac: 90000, asOf: iso(now - 2000), sourceUrl };
+  const earlier = { edgeId: "gcx-agua-dulce-tejas", oac: 90000, asOf: iso(now - 2000), sourceUrl };
   const latest = { ...earlier, oac: 0, asOf: iso(now) };
   await tracker.observe([], [earlier], now - 2000);
   await tracker.observe([], [latest], now);
@@ -214,7 +223,7 @@ test("webhook retries failures, deduplicates OFOs and emits capacity deltas once
     log: { warn() {} },
   });
   const notice = { board: "PHP", key: "PHP:1", title: "OFO" };
-  const old = { edgeId: "php-katy", oac: 60, asOf: iso(now), sourceUrl };
+  const old = { edgeId: "php-katy-oasis", oac: 60, asOf: iso(now), sourceUrl };
   const latest = { ...old, oac: 40, asOf: iso(now + 2000) };
   await tracker.observe([notice], [old], now);
   const alerts = await tracker.observe([notice], [latest], now + 2000);

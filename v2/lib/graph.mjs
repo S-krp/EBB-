@@ -24,7 +24,7 @@ export const corridorGraph = {
   ],
   edges: [
     {
-      id: "del-waha", from: "delaware", to: "waha", name: "Agua Blanca",
+      id: "agua-blanca-waha", from: "delaware", to: "waha", name: "Agua Blanca",
       points: "Texas Delaware Basin system → Agua Blanca Waha header",
       pointSourceUrl: aguaBlanca,
       mapUrl: "https://www.ogj.com/pipelines-transportation/article/14187326/whitewater-mplx-complete-agua-blanca-permian-gas-gathering-expansion",
@@ -35,7 +35,7 @@ export const corridorGraph = {
       designSourceUrl: aguaBlanca,
     },
     {
-      id: "php-katy", from: "waha", to: "katy", board: "PHP", name: "Permian Highway",
+      id: "php-katy-oasis", from: "waha", to: "katy", board: "PHP", name: "Permian Highway",
       points: "Agua Blanca receipt #54226 → Katy Oasis delivery",
       pointSourceUrl: phpPoints,
       deliverySourceUrl: "https://pipeline2.kindermorgan.com/Notices/NoticeDetail.aspx?code=PHP&notc_nbr=203466",
@@ -43,7 +43,7 @@ export const corridorGraph = {
       ...phpRates,
     },
     {
-      id: "gcx-agua", from: "waha", to: "agua-dulce", board: "GCX", name: "Gulf Coast Express",
+      id: "gcx-agua-dulce-tejas", from: "waha", to: "agua-dulce", board: "GCX", name: "Gulf Coast Express",
       points: "Agua Blanca receipt #53710 → KM Tejas interconnect #53668",
       pointSourceUrl: "https://pipeline2.kindermorgan.com/PortalWeb/PointCatalog.aspx?code=GCX",
       mapUrl: "https://pipeline2.kindermorgan.com/Documents/TGP/2018_Customer_Meeting_-_Combined_Presentation_-_FINAL-20180823090312.pdf#page=12",

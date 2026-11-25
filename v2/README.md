@@ -45,7 +45,7 @@ Copy `.env.example` to `.env.local` and uncomment only the settings you need.
   {
     "segments": [
       {
-        "edgeId": "php-katy",
+        "edgeId": "php-katy-oasis",
         "oac": 65000,
         "scheduledVolume": 18000,
         "asOf": "2026-11-24T18:00:00Z",
@@ -55,6 +55,6 @@ Copy `.env.example` to `.env.local` and uncomment only the settings you need.
   }
   ```
 
-  Baseline segment IDs: `del-waha`, `php-katy`, `gcx-agua`, `php-lockhart`, `hpl-hsc`. Recheck existing feed mappings against the exact points above before reusing them.
+  Baseline segment IDs: `agua-blanca-waha`, `php-katy-oasis`, `gcx-agua-dulce-tejas`, `php-lockhart`, `hpl-hsc`. Legacy seed IDs are intentionally not accepted. Remap observations to the new IDs only after verifying their pipeline and points match the audit above.
 - **Alerts** — On refresh the engine logs newly observed OFOs and changes between successive reported OAC observations (first observation establishes a baseline). Set `ALERT_WEBHOOK_URL` to POST each alert as JSON to a trusted receiver. This enables a one-minute background refresh in a persistent Node process; `V2_BACKGROUND_REFRESH=true` also enables background dry-run logging without a webhook. Otherwise refreshes occur on demand, at most once a minute under normal operation. Delivery retries and deduplication are in memory for a single instance, so restarts can replay OFOs or lose undelivered alerts. Use a receiver that deduplicates by alert ID. Messaging platforms requiring platform-specific payloads need an adapter.
 - **Graph** — In-memory by default. Set `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, and optionally `NEO4J_DATABASE` to seed and read the same corridor in Neo4j. The account needs write access to seed v2's dedicated point/segment labels; existing properties are not overwritten. The sourced graph uses a new corridor ID so existing illustrative records never enter its read. The OAC overlay remains in memory.
