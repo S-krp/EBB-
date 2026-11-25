@@ -73,7 +73,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
   const content = formatted?.key === key ? formatted : null;
   useEffect(() => {
     const controller = new AbortController();
-    const url = `/api/notices/${notice.board}/${encodeURIComponent(notice.id)}?${new URLSearchParams({ pipeline: notice.pipeline })}`;
+    const url = `/api/notices/${notice.board}/${encodeURIComponent(notice.id)}?${new URLSearchParams({ pipeline: notice.pipeline, hash: notice.hash })}`;
     fetch(url, { signal: controller.signal }).then(async (response) => {
       if (!response.ok) throw new Error("Could not load formatted notice");
       const data = await response.json() as { bodyBlocks: NoticeBlock[] | null };
@@ -82,7 +82,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
       if (!controller.signal.aborted) setFormatted({ key, failed: true });
     });
     return () => controller.abort();
-  }, [key, notice.board, notice.id, notice.pipeline]);
+  }, [key, notice.board, notice.id, notice.pipeline, notice.hash]);
   useEffect(() => { element.current?.showModal(); }, []);
   useEffect(() => {
     element.current?.scrollTo({ top: 0 });

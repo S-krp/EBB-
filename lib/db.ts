@@ -137,9 +137,9 @@ export async function readNoticeBlocks(board: BoardId, pipeline: string, id: str
   const connection = await database();
   const matches = (table: typeof pg.notices | typeof sqlite.notices) => and(eq(table.board, board), eq(table.pipeline, pipeline), eq(table.id, id));
   const rows = connection.kind === "pg"
-    ? await connection.db.select({ blocks: pg.notices.bodyBlocks }).from(pg.notices).where(matches(pg.notices))
-    : await connection.db.select({ blocks: sqlite.notices.bodyBlocks }).from(sqlite.notices).where(matches(sqlite.notices)).all();
-  return rows.length ? { bodyBlocks: rows[0].blocks ? JSON.parse(rows[0].blocks) as NoticeBlock[] : null } : null;
+    ? await connection.db.select({ hash: pg.notices.hash, blocks: pg.notices.bodyBlocks }).from(pg.notices).where(matches(pg.notices))
+    : await connection.db.select({ hash: sqlite.notices.hash, blocks: sqlite.notices.bodyBlocks }).from(sqlite.notices).where(matches(sqlite.notices)).all();
+  return rows.length ? { hash: rows[0].hash, bodyBlocks: rows[0].blocks ? JSON.parse(rows[0].blocks) as NoticeBlock[] : null } : null;
 }
 
 function nextRevision() {
