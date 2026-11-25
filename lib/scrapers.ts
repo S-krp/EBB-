@@ -67,7 +67,12 @@ async function scrapeTransfer(collect: Collect) {
     await collect(section, async () => {
       const $ = load(await (await request(`${transfer}/ipost/notice/${section}?asset=TW`)).text());
       const table = $("table").has("th.noticeId");
-      if (!table.length) throw new Error("Transwestern notice table not found");
+      if (!table.length) {
+        // A section with no notices renders a header-less table holding a single "No Data to Display" cell.
+        const empty = $("table td").filter((_, cell) => $(cell).text().trim() === "No Data to Display");
+        if (empty.length) return [];
+        throw new Error("Transwestern notice table not found");
+      }
       await mapLimited(table.find("tbody tr").has("td.noticeId a").toArray(), 4, (row) => {
         const read = (field: string) => $(row).find(`td.${field}`).text().trim();
         const id = read("noticeId");

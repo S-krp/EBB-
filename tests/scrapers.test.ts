@@ -111,6 +111,31 @@ test("reads Transwestern capacity constraint details when the notice text cell i
   assert.equal(result.notices[0].body, "Reason: Exceeds Operating Capacity - Delivery Location\nLocation: M/L THOREAU WEST SYSTEM");
 });
 
+test("treats a Transwestern section with no notices as empty rather than missing", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    if (url.includes("/show/")) return new Response(`<div class="modal-body"><table>
+      <tr><td>Notice Text:</td><td>Scheduled maintenance.</td></tr>
+    </table></div>`);
+    if (url.includes("/critical?")) return new Response(`<div id="criticalTable">
+      <table class="table footable" data-page-size="0"><tr><td align="center">No Data to Display</td></tr>
+      <tfoot class="hide-if-no-paging"><tr><td colspan="7"><nav><ul class="pagination"></ul></nav></td></tr></tfoot></table>
+    </div>`);
+    return new Response(`<table><thead><tr><th class="noticeId">Notice ID</th></tr></thead><tbody><tr><td class="noticeId">
+      <a href="/ipost/notice/show/7?asset=TW">7</a></td><td class="subject">Maintenance</td>
+    </tr></tbody></table>`);
+  });
+  const result = await scrapeBoard("TW");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.notices.length, 2);
+});
+
+test("still reports a missing Transwestern notice table when the page has neither notices nor an empty state", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("<html><body><p>Service unavailable</p></body></html>"));
+  const result = await scrapeBoard("TW");
+  assert.equal(result.errors.length, 3);
+  assert.match(result.errors[0], /^critical: Transwestern notice table not found$/);
+});
+
 test("falls back to the Carlsbad category when the board has no subtype", async (t) => {
   t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
     const critical = (options.body as URLSearchParams).get("CriticalNoticeCode");
