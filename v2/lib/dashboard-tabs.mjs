@@ -3,7 +3,8 @@ export const dashboardTabs = [
   { id: "notices", label: "OFO notices" },
 ];
 
-export function tabForKey(active, key) {
+export function tabForKey(active, key, { ctrlKey, metaKey, altKey, shiftKey } = {}) {
+  if (ctrlKey || metaKey || altKey || shiftKey) return null;
   const index = dashboardTabs.findIndex(({ id }) => id === active);
   const count = dashboardTabs.length;
   switch (key) {

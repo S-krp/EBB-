@@ -15,3 +15,10 @@ test("Home and End select the first and last tabs without intercepting Tab", () 
   assert.equal(tabForKey("routes", "End"), "notices");
   assert.equal(tabForKey("routes", "Tab"), null);
 });
+
+test("modified keys remain available for browser shortcuts", () => {
+  assert.equal(tabForKey("routes", "End", { ctrlKey: true }), null);
+  assert.equal(tabForKey("notices", "Home", { metaKey: true }), null);
+  assert.equal(tabForKey("routes", "ArrowRight", { altKey: true }), null);
+  assert.equal(tabForKey("notices", "ArrowLeft", { shiftKey: true }), null);
+});

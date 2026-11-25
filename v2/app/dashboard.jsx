@@ -268,7 +268,7 @@ export default function Dashboard() {
   }
 
   function navigateTabs(event) {
-    const next = tabForKey(activeTab, event.key);
+    const next = tabForKey(activeTab, event.key, event);
     if (!next) return;
     event.preventDefault();
     setActiveTab(next);
