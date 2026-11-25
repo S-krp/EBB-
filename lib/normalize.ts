@@ -26,7 +26,7 @@ export function normalize(raw: RawNotice): Notice {
   const category = ofo.test(subject) ? "OFO"
     : forceMajeure.test(subject) ? "Force Majeure"
     : maintenance.test(subject) ? "Maintenance"
-    : ofo.test(raw.body) ? "OFO"
+    : raw.board !== "LINK" && ofo.test(raw.body) ? "OFO"
     : forceMajeure.test(raw.body) ? "Force Majeure"
     : raw.critical || emergency ? "Critical"
     : maintenance.test(raw.body) ? "Maintenance" : "Non-Critical";
@@ -38,7 +38,7 @@ export function normalize(raw: RawNotice): Notice {
     : [];
   const hash = createHash("sha256").update(JSON.stringify([
     raw.board, raw.pipeline, raw.id, raw.title, raw.sourceType, raw.critical, raw.postedAt,
-    raw.effectiveFrom, raw.effectiveThrough, raw.sourceUrl, raw.body,
+    raw.effectiveFrom, raw.effectiveThrough, raw.sourceUrl, raw.body, category, emergency, tolerances,
   ])).digest("hex");
   return { ...raw, critical: raw.critical || emergency || category === "OFO" || category === "Force Majeure", category, emergency, tolerances, hash };
 }
