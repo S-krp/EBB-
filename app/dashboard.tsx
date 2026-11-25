@@ -3,7 +3,7 @@
 import { Activity, AlertTriangle, ArrowDown, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, ExternalLink, LayoutGrid, List, Radio, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createFeedRefresh } from "../lib/feed-refresh";
-import { boardIds, boards, categories, type Category, type Notice, type Snapshot } from "../lib/model";
+import { boardIds, boards, categories, type Category, type Notice, type NoticeBlock, type Snapshot } from "../lib/model";
 import { emptyNoticeFilters, filterNotices, hasInvertedRange, indexNotices, readNoticeFilters, writeNoticeFilters, type NoticeFilters } from "../lib/notice-filters";
 import { countNonLiftedOfos, isLifted } from "../lib/notice-status";
 
@@ -49,14 +49,18 @@ function Source({ url, title }: { url: string; title: string }) {
 
 function NoticeBody({ notice }: { notice: Notice }) {
   if (!notice.bodyBlocks?.length) return <p className="whitespace-pre-wrap wrap-anywhere">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>;
-  return <div className="space-y-5">{notice.bodyBlocks.map((block, index) => block.type === "text"
+  return <NoticeBlocks blocks={notice.bodyBlocks} title={notice.title} />;
+}
+
+function NoticeBlocks({ blocks, title }: { blocks: NoticeBlock[]; title: string }) {
+  return <div className="space-y-5">{blocks.map((block, index) => block.type === "text"
     ? <p key={index} className="whitespace-pre-wrap wrap-anywhere">{block.text}</p>
     : <div key={index} role="region" aria-label={`Notice table ${index + 1}`} tabIndex={0} className="overflow-x-auto rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-signal">
-      <table className="w-full border-collapse text-left text-sm leading-6" aria-label={`${notice.title} — table ${index + 1}`}>
+      <table className="w-full border-collapse text-left text-sm leading-6" aria-label={`${title} — table ${index + 1}`}>
         {block.caption && <caption className="bg-inset px-4 py-3 text-left font-bold">{block.caption}</caption>}
         <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-line last:border-b-0 even:bg-inset">{row.map((cell, cellIndex) => {
           const Cell = cell.header ? "th" : "td";
-          return <Cell key={cellIndex} colSpan={cell.colSpan} rowSpan={cell.rowSpan} className={`min-w-24 border-r border-line px-4 py-3 align-top whitespace-pre-line last:border-r-0 ${cell.header ? "bg-inset font-bold text-slate-100" : "text-slate-200"}`}>{cell.text}</Cell>;
+          return <Cell key={cellIndex} colSpan={cell.colSpan} rowSpan={cell.rowSpan} className={`min-w-24 border-r border-line px-4 py-3 align-top whitespace-pre-line last:border-r-0 ${cell.header ? "bg-inset font-bold text-slate-100" : "text-slate-200"}`}>{cell.blocks ? <NoticeBlocks blocks={cell.blocks} title={title} /> : cell.text}</Cell>;
         })}</tr>)}</tbody>
       </table>
     </div>)}</div>;

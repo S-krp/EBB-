@@ -29,7 +29,7 @@ export type RawNotice = {
   bodyBlocks?: NoticeBlock[];
 };
 
-export type NoticeCell = { text: string; header: boolean; colSpan: number; rowSpan: number };
+export type NoticeCell = { text: string; header: boolean; colSpan: number; rowSpan: number; blocks?: NoticeBlock[] };
 export type NoticeBlock = { type: "text"; text: string } | { type: "table"; caption?: string; rows: NoticeCell[][] };
 
 export type Notice = RawNotice & { hash: string; category: Category; emergency: boolean; tolerances: string[] };

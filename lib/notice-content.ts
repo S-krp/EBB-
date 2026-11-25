@@ -30,8 +30,9 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
       $(row).children("td, th").toArray().map((cell) => {
         const fragment = load("<div data-cell></div>");
         fragment("[data-cell]").append($(cell).html() || "");
+        const nested = noticeContent(fragment, "[data-cell]");
         return {
-          text: plainText(fragment, "[data-cell]"),
+          text: nested.body, ...(nested.bodyBlocks ? { blocks: nested.bodyBlocks } : {}),
           header: cell.tagName === "th" || $(cell).find("b, strong").length > 0,
           colSpan: span($(cell).attr("colspan")), rowSpan: span($(cell).attr("rowspan")),
         };

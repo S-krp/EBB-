@@ -36,3 +36,13 @@ test("keeps table captions", () => {
   const table = contentFrom("<table><caption>Capacity limits</caption><tr><td>10</td></tr></table>").bodyBlocks?.[0];
   assert.equal(table?.type === "table" && table.caption, "Capacity limits");
 });
+
+test("preserves a data table inside a layout cell", () => {
+  const outer = contentFrom("<table><tr><td><p>Introduction</p><table><tr><th>Loc</th><th>Area</th></tr><tr><td>301839</td><td>BLANCO</td></tr></table><p>After</p></td></tr></table>").bodyBlocks?.[0];
+  assert.equal(outer?.type, "table");
+  if (outer?.type !== "table") throw new Error("Missing layout table");
+  const blocks = outer.rows[0][0].blocks!;
+  assert.deepEqual(blocks.filter((block) => block.type === "text"), [{ type: "text", text: "Introduction" }, { type: "text", text: "After" }]);
+  const table = blocks[1];
+  assert.deepEqual(table.type === "table" && table.rows.map((row) => row.map((cell) => cell.text)), [["Loc", "Area"], ["301839", "BLANCO"]]);
+});
