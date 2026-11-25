@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { DateTime } from "luxon";
 import type { Notice, RawNotice } from "./model";
+import { isLifted } from "./notice-status";
 
 export const centralZone = "America/Chicago";
 
@@ -41,8 +42,7 @@ export function normalize(raw: RawNotice): Notice {
   const percent = "(?:[±+−-]\\s*)?\\d+(?:\\.\\d+)?\\s*(?:%|percent\\b)";
   const tableEntry = `\\bOFO in effect:[ \\t]*\\n+(?:No (?:D[PS]|Due (?:Pipe|Shipper))[ \\t]*\\n+)?(${percent})(?=[ \\t]*/)`;
   const nearby = new RegExp(`${tolerance}[^.!?%\\n]{0,65}?(${percent})|(${percent})[^.!?\\n]{0,35}?${tolerance}|${tableEntry}`, "gi");
-  const lifted = (category === "OFO" || category === "Force Majeure") &&
-    /\b(lifted|rescinded|cancell?ed|terminated|no longer in effect)\b/i.test(raw.title);
+  const lifted = (category === "OFO" || category === "Force Majeure") && isLifted(raw);
   const toleranceText = explicitOfo ? subject.concat("\n", raw.body) : activeOrders.join("\n");
   const tolerances = category === "OFO" && !lifted
     ? [...new Set([...toleranceText.matchAll(nearby)].map((m) => (m[1] || m[2] || m[3]).replace(/\s*percent/i, "%").replace(/\s/g, "")))]

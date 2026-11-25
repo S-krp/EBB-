@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, ArrowDown, ArrowUpRight, CalendarDays, Chevron
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { boardIds, boards, categories, type Category, type Notice, type Snapshot } from "../lib/model";
 import { emptyNoticeFilters, filterNotices, hasInvertedRange, indexNotices, readNoticeFilters, writeNoticeFilters, type NoticeFilters } from "../lib/notice-filters";
+import { countNonLiftedOfos, isLifted } from "../lib/notice-status";
 
 const timezone = "America/Chicago";
 const dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: timezone, month: "short", day: "numeric", year: "numeric" });
@@ -30,8 +31,6 @@ function windowLabel(notice: Notice) {
   if (start) return start;
   return end ? `Through ${end}` : "—";
 }
-
-const isLifted = (notice: Notice) => /\blifted\b/i.test(notice.title);
 
 function Badge({ notice }: { notice: Notice }) {
   return <div className="flex flex-wrap items-center gap-1.5">
@@ -177,7 +176,7 @@ export default function Dashboard() {
   const metrics = [
     { label: "Notices collected", count: notices.length, caption: "Across connected public boards", icon: List, color: "text-signal" },
     { label: "Critical notices", count: notices.filter((notice) => notice.critical).length, caption: "Includes OFOs and force majeure", icon: AlertTriangle, color: "text-rose-300" },
-    { label: "Operational flow orders", count: notices.filter((notice) => notice.category === "OFO" && !isLifted(notice)).length, caption: "Including published tolerances", icon: Activity, color: "text-amber-300" },
+    { label: "Operational flow orders", count: countNonLiftedOfos(notices), caption: "Including published tolerances", icon: Activity, color: "text-amber-300" },
     { label: "Healthy boards", count: `${successCount} / ${boardIds.length}`, caption: "Based on the latest sweep", icon: Radio, color: "text-signal" },
   ];
 

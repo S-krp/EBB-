@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { RawNotice } from "../lib/model";
+import { countNonLiftedOfos } from "../lib/notice-status";
 import { normalize, noticeDate } from "../lib/normalize";
 import { isScheduledHour, nextSweep } from "../lib/schedule";
 
@@ -62,6 +63,15 @@ test("does not mark lifted orders critical or extract their old tolerances", () 
   });
   assert.equal(forceMajeure.category, "Force Majeure");
   assert.equal(forceMajeure.critical, false);
+});
+
+test("counts active OFOs without counting lifted or rescinded notices", () => {
+  assert.equal(countNonLiftedOfos([
+    normalize(notice),
+    normalize({ ...notice, title: "SOC Lifted - Location Specific Pack", sourceType: "Operational Flow Order", critical: true }),
+    normalize({ ...notice, title: "OFO rescinded", critical: true }),
+    normalize({ ...notice, title: "Force Majeure declared" }),
+  ]), 1);
 });
 
 test("hashes identical content consistently and detects edits", () => {
