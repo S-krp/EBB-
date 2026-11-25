@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { and, eq, lt, ne, sql } from "drizzle-orm";
+import { and, eq, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle as drizzleSqlite, type AsyncRemoteCallback } from "drizzle-orm/sqlite-proxy";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -107,7 +107,8 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
     await connection.db.transaction(async (tx) => {
       for (const row of rows) {
         await tx.insert(pg.notices).values(row).onConflictDoUpdate({
-          target: [pg.notices.board, pg.notices.pipeline, pg.notices.id], set: row, setWhere: ne(pg.notices.hash, row.hash),
+          target: [pg.notices.board, pg.notices.pipeline, pg.notices.id], set: row,
+          setWhere: or(ne(pg.notices.hash, row.hash), ne(pg.notices.category, row.category)),
         });
       }
       await tx.insert(pg.status).values(status).onConflictDoUpdate({
@@ -120,7 +121,8 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
         target: sqlite.status.board, set: { ...result, ...(lastSuccess ? { lastSuccess } : {}) },
       }),
       ...rows.map((row) => connection.db.insert(sqlite.notices).values(row).onConflictDoUpdate({
-          target: [sqlite.notices.board, sqlite.notices.pipeline, sqlite.notices.id], set: row, setWhere: ne(sqlite.notices.hash, row.hash),
+          target: [sqlite.notices.board, sqlite.notices.pipeline, sqlite.notices.id], set: row,
+          setWhere: or(ne(sqlite.notices.hash, row.hash), ne(sqlite.notices.category, row.category)),
       })),
     ]);
   }

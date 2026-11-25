@@ -17,6 +17,16 @@ test("classifies an OFO and reports tolerance without unrelated percentages", ()
   assert.deepEqual(result.tolerances, ["±5%"]);
 });
 
+test("does not treat empty LINK pipeline-condition OFO fields as an order", () => {
+  const conditions: RawNotice = {
+    ...notice, board: "LINK", title: "AGT Pipeline Conditions for 11/25/2026", sourceType: "Capacity Constraint", critical: true,
+    body: "OFO / Imbalance Notice\n\nSystem Wide OFO\n---\n\nCustomer Specific OFO\n---\n\nImbalance Warnings\nStay Balanced",
+  };
+  assert.equal(normalize(conditions).category, "Critical");
+  assert.equal(normalize({ ...conditions, body: conditions.body.replace("---", "No DS - 5% tolerance") }).category, "OFO");
+  assert.equal(normalize({ ...conditions, title: "Operational Flow Order -- EFF 11/25" }).category, "OFO");
+});
+
 test("hashes identical content consistently and detects edits", () => {
   assert.match(normalize(notice).hash, /^[a-f0-9]{64}$/);
   assert.equal(normalize(notice).hash, normalize({ ...notice }).hash);

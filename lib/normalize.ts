@@ -17,6 +17,12 @@ export function noticeDate(input: string | null | undefined, zone = centralZone)
   return null;
 }
 
+function isEmptyLinkOfoSummary({ board, title, body }: RawNotice) {
+  if (board !== "LINK" || !/\bPipeline Conditions for\b/i.test(title) || !/^OFO \/ Imbalance Notice\s*$/im.test(body)) return false;
+  const fields = [...body.matchAll(/^(?:(?:System Wide|Customer Specific(?: Hourly)?|Hourly Customer Specific|Meter Specific) )?OFO[ \t]*\r?\n(?:[ \t]*\r?\n)*([^\r\n]+)$/gim)];
+  return fields.length > 0 && fields.every(([, value]) => /^\s*-+\s*$/.test(value));
+}
+
 export function normalize(raw: RawNotice): Notice {
   const subject = raw.sourceType + " " + raw.title;
   const emergency = /\bemergenc(?:y|ies)\b/i.test(subject) || /\bemergency (?:notice|shutdown|posting|condition|response)\b/i.test(raw.body);
@@ -26,7 +32,7 @@ export function normalize(raw: RawNotice): Notice {
   const category = ofo.test(subject) ? "OFO"
     : forceMajeure.test(subject) ? "Force Majeure"
     : maintenance.test(subject) ? "Maintenance"
-    : ofo.test(raw.body) ? "OFO"
+    : ofo.test(raw.body) && !isEmptyLinkOfoSummary(raw) ? "OFO"
     : forceMajeure.test(raw.body) ? "Force Majeure"
     : raw.critical || emergency ? "Critical"
     : maintenance.test(raw.body) ? "Maintenance" : "Non-Critical";
