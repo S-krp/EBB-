@@ -23,8 +23,9 @@ const initialSchema = [
 ];
 
 async function connect() {
-  if (process.env.DATABASE_URL) {
-    const client = postgres(process.env.DATABASE_URL, { max: 4, prepare: false, idle_timeout: 20 });
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (databaseUrl) {
+    const client = postgres(databaseUrl, { max: 4, prepare: false, idle_timeout: 20 });
     try {
       await client.begin(async (transaction) => {
         await transaction`SELECT pg_advisory_xact_lock(662751904)`;
@@ -36,7 +37,7 @@ async function connect() {
       throw error;
     }
   }
-  if (process.env.VERCEL) throw new Error("Set DATABASE_URL to a persistent PostgreSQL database on Vercel.");
+  if (process.env.VERCEL) throw new Error("Set DATABASE_URL or POSTGRES_URL to a persistent PostgreSQL database on Vercel.");
   const filename = resolve(/* turbopackIgnore: true */ process.env.SQLITE_PATH || ".data/notices.sqlite");
   mkdirSync(dirname(filename), { recursive: true });
   const client = new DatabaseSync(filename);

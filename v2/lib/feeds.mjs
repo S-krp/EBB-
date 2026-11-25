@@ -23,7 +23,7 @@ async function readJson(url, fetcher) {
 }
 
 export async function readNotices(env, boards, now, fetcher = fetch) {
-  const url = env.V1_NOTICE_FEED_URL ?? DEFAULT_NOTICE_URL;
+  const url = env.V1_NOTICE_FEED_URL ?? (env.VERCEL ? "" : DEFAULT_NOTICE_URL);
   if (!url) return { notices: [], status: "disabled" };
   const data = await readJson(url, fetcher);
   if (!Array.isArray(data.notices) || !Array.isArray(data.status)) throw new Error("Unrecognized EBB Watch feed");
