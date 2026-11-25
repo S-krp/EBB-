@@ -44,4 +44,14 @@ test("refreshes cached derived fields even when the hash matches", async (t) => 
   assert.equal(await updateCachedNotice(stale.hash, refreshed), true);
   assert.deepEqual((await readFeed()).notices, [refreshed]);
   assert.equal(await updateCachedNotice(refreshed.hash, refreshed), false);
+
+  const withTable = normalize({ ...refreshed, bodyBlocks: [{ type: "table", rows: [[
+    { text: "Loc", header: true, colSpan: 1, rowSpan: 1 },
+    { text: "", header: false, colSpan: 1, rowSpan: 1 },
+  ]] }] });
+  assert.notEqual(withTable.hash, refreshed.hash);
+  await saveBoard([withTable], status);
+  assert.deepEqual((await readFeed()).notices, [withTable]);
+  await saveBoard([refreshed], status);
+  assert.deepEqual((await readFeed()).notices, [refreshed]);
 });

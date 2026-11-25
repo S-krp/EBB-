@@ -13,6 +13,7 @@ export const notices = sqliteTable("notices", {
   effectiveThrough: text("effective_through"),
   sourceUrl: text("source_url").notNull(),
   body: text("body").notNull(),
+  bodyBlocks: text("body_blocks"),
   hash: text("hash").notNull(),
   category: text("category").$type<Category>().notNull(),
   emergency: integer("emergency").notNull(),

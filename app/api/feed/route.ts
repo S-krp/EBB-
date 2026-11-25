@@ -11,7 +11,8 @@ export async function GET(request: Request) {
     const next = nextSweep();
     const headers = { "Cache-Control": "no-cache", ETag: feedEtag(revision, status, next, query) };
     if (etagMatches(request.headers.get("if-none-match"), headers.ETag)) return new Response(null, { status: 304, headers });
-    const notices = filterFeed(await readNotices(revision), query);
+    // Formatting can dwarf the searchable body; fetch it only for the open drawer.
+    const notices = filterFeed(await readNotices(revision), query).map((notice) => ({ ...notice, bodyBlocks: undefined }));
     return Response.json({ notices, status, nextSweep: next }, { headers });
   } catch (error) {
     console.error("Could not read EBB feed", error);

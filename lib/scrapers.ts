@@ -1,4 +1,5 @@
-import { load, type CheerioAPI } from "cheerio";
+import { load } from "cheerio";
+import { contentFrom, noticeContent } from "./notice-content";
 import { DateTime } from "luxon";
 import { boards, type BoardId, type RawNotice } from "./model";
 import { centralZone, noticeDate, transwesternEndDate } from "./normalize";
@@ -32,22 +33,6 @@ async function request(url: string, options?: RequestInit) {
   return response;
 }
 
-function plainText($: CheerioAPI, selector: string) {
-  const content = $(selector).clone();
-  content.find("script, style, head, title, noscript").remove();
-  content.find("br").replaceWith("\n");
-  content.find("p, div, li, pre, tr").after("\n");
-  content.find("td, th").after("  ");
-  return content.text().replace(/\r\n?/g, "\n").split("\n")
-    .map((line) => line.replace(/[\t\u00a0 ]+/g, " ").trim())
-    .join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-function textFrom(value: string) {
-  if (!/<\/?(?:html|body|p|div|br|table|span|b|font|td|ul|a)\b/i.test(value)) return value.trim();
-  return plainText(load(value), "body");
-}
-
 async function scrapeKinder(board: KinderBoard, collect: Collect) {
   for (const type of ["C", "N", "P"]) {
     await collect(type + " listing", async () => {
@@ -70,7 +55,7 @@ async function scrapeKinder(board: KinderBoard, collect: Collect) {
       await mapLimited(listings, 4, (item) => collect(item.id, async () => {
         const detail = load(await (await request(item.sourceUrl)).text());
         if (!detail("[id$='_Label12']").length) throw new Error("Kinder Morgan notice body not found");
-        return [{ ...item, body: plainText(detail, "[id$='_Label12']") }];
+        return [{ ...item, ...noticeContent(detail, "[id$='_Label12']") }];
       }));
       return [];
     });
@@ -95,14 +80,15 @@ async function scrapeTransfer(collect: Collect) {
           }).first();
           if (!bodyLabel.length) throw new Error("Transwestern notice body not found");
           bodyLabel.next().attr("data-notice-body", "");
-          const body = plainText(detail, "[data-notice-body]") || bodyLabel.parent().nextAll("tr").toArray().flatMap((row) => {
+          const content = noticeContent(detail, "[data-notice-body]");
+          const body = content.body || bodyLabel.parent().nextAll("tr").toArray().flatMap((row) => {
             const cells = detail(row).children("td");
             const label = cells.eq(0).text().trim();
             const value = cells.eq(1).text().trim();
             return value && (label === "Reason:" || label === "Location:") ? [`${label} ${value}`] : [];
           }).join("\n");
           return [{
-            board: "TW", pipeline: boards.TW.name, id, title: read("subject"), body, sourceUrl,
+            board: "TW", pipeline: boards.TW.name, id, title: read("subject"), ...content, body, sourceUrl,
             sourceType: section === "planned-service-outage" ? "Planned service outage" : read("type"),
             critical: section === "critical", postedAt: noticeDate(read("postingDate")),
             effectiveFrom: noticeDate(read("effectiveDate")), effectiveThrough: transwesternEndDate(read("endDate")),
@@ -163,7 +149,7 @@ async function scrapeLink(collect: Collect) {
             effectiveFrom: noticeDate(`${record.NoticeEffFromDate} ${record.NoticeEffFromTime}`),
             effectiveThrough: linkEffectiveThrough(record),
             sourceUrl: `${enbridge}/noticedetails/${routeCode}/CRI/${encodeURIComponent(noticeId)}`,
-            body: textFrom((typeof record.NoticeText === "string" ? record.NoticeText : record.NoticeText?.rawText) ?? ""),
+            ...contentFrom((typeof record.NoticeText === "string" ? record.NoticeText : record.NoticeText?.rawText) ?? ""),
           }];
         });
       }
@@ -195,7 +181,7 @@ async function scrapeCarlsbad(collect: Collect) {
             board: "CG", pipeline: boards.CG.name, id: String(notice.NoticeId), title: notice.NoticeSubject,
             sourceType: notice.NoticeSubType || notice.NoticeCategoryDesc || "", critical: critical === "Y", postedAt: noticeDate(notice.PostDatetime),
             effectiveFrom: noticeDate(notice.NoticeEffDatetime), effectiveThrough: noticeDate(notice.NoticeEndDatetime),
-            sourceUrl: new URL(notice.ActionURL, carlsbad).href, body: textFrom(notice.NoticeText ?? ""),
+          sourceUrl: new URL(notice.ActionURL, carlsbad).href, ...contentFrom(notice.NoticeText ?? ""),
           }]);
         }
         if (page * pageSize >= result.Total) break;

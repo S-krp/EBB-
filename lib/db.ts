@@ -6,7 +6,7 @@ import { and, eq, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { drizzle as drizzleSqlite, type AsyncRemoteCallback } from "drizzle-orm/sqlite-proxy";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import type { BoardStatus, Notice } from "./model";
+import type { BoardId, BoardStatus, Notice, NoticeBlock } from "./model";
 import * as pg from "./schema-pg";
 import * as sqlite from "./schema-sqlite";
 
@@ -34,6 +34,7 @@ async function connect() {
       await client.begin(async (transaction) => {
         await transaction`SELECT pg_advisory_xact_lock(662751904)`;
         for (const statement of initialSchema) await transaction.unsafe(statement);
+        await transaction`ALTER TABLE notices ADD COLUMN IF NOT EXISTS body_blocks TEXT`;
       });
       return { kind: "pg" as const, db: drizzlePg(client) };
     } catch (error) {
@@ -47,6 +48,9 @@ async function connect() {
   const client = new DatabaseSync(filename);
   client.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
   for (const statement of initialSchema) client.exec(statement);
+  if (!(client.prepare("PRAGMA table_info(notices)").all() as { name: string }[]).some((column) => column.name === "body_blocks")) {
+    client.exec("ALTER TABLE notices ADD COLUMN body_blocks TEXT");
+  }
   function execute(query: string, params: SQLInputValue[], method: Parameters<AsyncRemoteCallback>[2]) {
     const statement = client.prepare(query);
     if (method === "run") {
@@ -107,8 +111,9 @@ async function selectNotices() {
   const rows = connection.kind === "pg"
     ? await connection.db.select().from(pg.notices).orderBy(noticeOrder(pg.notices.postedAt))
     : await connection.db.select().from(sqlite.notices).orderBy(noticeOrder(sqlite.notices.postedAt)).all();
-  return rows.map((row): Notice => ({
-    ...row, critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
+  return rows.map(({ bodyBlocks, ...row }): Notice => ({
+    ...row, ...(bodyBlocks ? { bodyBlocks: JSON.parse(bodyBlocks) } : {}),
+    critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
   }));
 }
 
@@ -126,6 +131,15 @@ export function readNotices(revision: string) {
 export async function readFeed() {
   const { revision, status } = await readFeedVersion();
   return { notices: await readNotices(revision), status };
+}
+
+export async function readNoticeBlocks(board: BoardId, pipeline: string, id: string) {
+  const connection = await database();
+  const matches = (table: typeof pg.notices | typeof sqlite.notices) => and(eq(table.board, board), eq(table.pipeline, pipeline), eq(table.id, id));
+  const rows = connection.kind === "pg"
+    ? await connection.db.select({ hash: pg.notices.hash, blocks: pg.notices.bodyBlocks }).from(pg.notices).where(matches(pg.notices))
+    : await connection.db.select({ hash: sqlite.notices.hash, blocks: sqlite.notices.bodyBlocks }).from(sqlite.notices).where(matches(sqlite.notices)).all();
+  return rows.length ? { hash: rows[0].hash, bodyBlocks: rows[0].blocks ? JSON.parse(rows[0].blocks) as NoticeBlock[] : null } : null;
 }
 
 function nextRevision() {
@@ -162,7 +176,7 @@ function staleNotices(table: typeof pg.notices | typeof sqlite.notices, notices:
 
 export async function saveBoard(notices: Notice[], status: BoardStatus) {
   const connection = await database();
-  const rows = notices.map((notice) => ({ ...notice, ...cachedFields(notice) }));
+  const rows = notices.map((notice) => ({ ...notice, bodyBlocks: notice.bodyBlocks ? JSON.stringify(notice.bodyBlocks) : null, ...cachedFields(notice) }));
   const { board, lastSuccess, ...result } = status;
   const revision = nextRevision();
   if (connection.kind === "pg") {
