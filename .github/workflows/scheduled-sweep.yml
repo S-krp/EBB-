@@ -1,0 +1,30 @@
+name: Scheduled EBB sweep
+
+on:
+  schedule:
+    - cron: '7 9,13,18,22 * * *'
+      timezone: America/Chicago
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Trigger production sweep
+        shell: bash
+        env:
+          SWEEP_ORIGIN: https://ebb-watch.vercel.app
+        run: |
+          token=$(curl --fail --silent --show-error --connect-timeout 15 --max-time 30 \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            --get --data-urlencode "audience=$SWEEP_ORIGIN" "$ACTIONS_ID_TOKEN_REQUEST_URL" |
+            jq -er '.value | select(type == "string" and length > 0)')
+          printf '::add-mask::%s\n' "$token"
+          curl --fail-with-body --silent --show-error --connect-timeout 15 --max-time 320 \
+            --header "Authorization: Bearer $token" \
+            "$SWEEP_ORIGIN/api/cron" |
+            jq -e 'if .status then {boards: (.status | length)} elif .skipped then {skipped} else error("Unexpected sweep response") end'
