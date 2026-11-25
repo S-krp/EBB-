@@ -23,7 +23,8 @@ const categorySearchText: Record<Category, string> = {
   Critical: "Critical crit",
   "Non-Critical": "",
 };
-const nonCriticalTerms = ["non-critical", "noncritical"];
+const nonCriticalTerm = "noncritical";
+const nonCriticalPhrase = /\bnon(?:[ \t]+|-)critical\b/g;
 
 const centralDate = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
@@ -38,16 +39,19 @@ function postedDate(postedAt: string | null) {
 }
 
 export function indexNotices(notices: Notice[]) {
-  return notices.map((notice) => ({
-    notice,
-    date: postedDate(notice.postedAt),
-    exactTerms: notice.category === "Non-Critical" ? nonCriticalTerms : [],
-    text: [
+  return notices.map((notice) => {
+    const text = [
       notice.title, notice.body, notice.id, notice.pipeline, notice.board,
       categorySearchText[notice.category], notice.critical ? "critical" : "",
       notice.emergency ? "emergency" : "",
-    ].join("\n").toLowerCase(),
-  }));
+    ].join("\n").toLowerCase();
+    return {
+      notice,
+      date: postedDate(notice.postedAt),
+      hasNonCriticalTerm: notice.category === "Non-Critical" || text.search(nonCriticalPhrase) !== -1,
+      text,
+    };
+  });
 }
 
 export function hasInvertedRange({ start, end }: NoticeFilters["range"]) {
@@ -57,14 +61,14 @@ export function hasInvertedRange({ start, end }: NoticeFilters["range"]) {
 export function filterNotices(index: ReturnType<typeof indexNotices>, filters: NoticeFilters) {
   const { query, pipelines, types, criticalOnly, range } = filters;
   if (hasInvertedRange(range)) return [];
-  const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const terms = query.toLowerCase().replace(nonCriticalPhrase, nonCriticalTerm).trim().split(/\s+/).filter(Boolean);
   const matches: Notice[] = [];
-  for (const { notice, date, text, exactTerms } of index) {
+  for (const { notice, date, text, hasNonCriticalTerm } of index) {
     if (pipelines.length && !pipelines.includes(notice.board)) continue;
     if (types.length && !types.includes(notice.category)) continue;
     if (criticalOnly && !notice.critical) continue;
     if ((range.start || range.end) && (!date || (range.start && date < range.start) || (range.end && date > range.end))) continue;
-    if (terms.every((term) => text.includes(term) || exactTerms.includes(term))) matches.push(notice);
+    if (terms.every((term) => text.includes(term) || (hasNonCriticalTerm && term === nonCriticalTerm))) matches.push(notice);
   }
   return matches;
 }

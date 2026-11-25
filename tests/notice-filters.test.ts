@@ -46,6 +46,18 @@ test("matches Non-Critical classification only by its exact aliases", () => {
   }
 });
 
+test("treats spaced and hyphenated Non-Critical phrases as one search term", () => {
+  const rows: Notice[] = [
+    { ...notice, id: "n0", category: "Non-Critical", critical: false },
+    { ...notice, id: "n1", body: "A non critical maintenance update." },
+    { ...notice, id: "n2", title: "Non-critical maintenance update" },
+    { ...notice, id: "n3", title: "Non-operational critical outage" },
+  ];
+  for (const query of ["EPNG NON   CRITICAL", "non-critical EPNG", "EPNG noncritical"]) {
+    assert.deepEqual(matches(rows, { query }), ["n0", "n1", "n2"]);
+  }
+});
+
 test("uses inclusive Central dates, excluding adjacent dates and undated notices only when bounded", () => {
   const rows = [
     { id: "before", postedAt: "2026-11-23T05:59:59Z" },
