@@ -3,7 +3,7 @@ import test from "node:test";
 import { alertTracker } from "../lib/alerts.mjs";
 import { cycleClock } from "../lib/cycles.mjs";
 import { readCapacity, readNotices } from "../lib/feeds.mjs";
-import { memoryGraph, seedGraph, withCapacity } from "../lib/graph.mjs";
+import { corridorGraph, memoryGraph, withCapacity } from "../lib/graph.mjs";
 import { graphStore } from "../lib/neo4j.mjs";
 import { solve } from "../lib/solver.mjs";
 
@@ -11,16 +11,26 @@ const now = Date.parse("2026-07-20T18:00:00Z");
 const iso = (time) => new Date(time).toISOString();
 const sourceUrl = "https://example.com/board";
 const jsonFeed = (data) => async () => Response.json(data);
-const input = { origin: "delaware", supplyPrice: 2.25, demand: 35000, markets: { katy: 3.1, hsc: 3.35 } };
+const input = { origin: "delaware", supplyPrice: 2.25, demand: 35000, markets: { katy: 3.1, "agua-dulce": 3.1, hsc: 4 } };
 
-test("graph backends default to isolated illustrative snapshots", async () => {
+test("the default graph isolates snapshots and cites the published benchmarks rather than seeding OAC", async () => {
   const store = graphStore({});
   const graph = await store.read();
   assert.equal(store.name, "In-memory");
-  assert.deepEqual(graph, seedGraph);
-  assert.deepEqual(new Set(graph.nodes.map(({ kind }) => kind)), new Set(["receipt", "interconnect", "delivery", "storage"]));
+  assert.deepEqual(graph, corridorGraph);
+  assert.deepEqual(Object.fromEntries(graph.edges.map(({ id, tariff, fuel }) => [id, [tariff, fuel]])), {
+    "del-waha": [0.195, 0.0075], "php-katy": [0.5136, 0.045], "gcx-agua": [0.46, 0.04],
+    "php-lockhart": [0.5136, 0.045], "hpl-hsc": [0.3125, 0.013],
+  });
+  for (const edge of graph.edges) {
+    for (const url of [edge.pointSourceUrl, edge.rateSourceUrl, edge.designSourceUrl]) {
+      assert.equal(new URL(url).protocol, "https:");
+    }
+    assert.equal(edge.capacity, null);
+    assert.equal(edge.capacitySource, "unreported");
+  }
   graph.edges[0].capacity = 1;
-  assert.equal((await store.read()).edges[0].capacity, 100000);
+  assert.equal((await store.read()).edges[0].capacity, null);
   assert.throws(() => memoryGraph({ ...graph, nodes: [] }), /Invalid corridor segment/);
   assert.throws(() => graphStore({ NEO4J_URI: "neo4j://localhost" }), /credentials/);
 });
@@ -42,62 +52,59 @@ test("fuel and tariffs are charged on grossed-up inlet volume", () => {
   assert.equal(result.bestNetback.margin, 3.25);
 });
 
-test("constrained routes stay visible and cheapest differs from best netback", () => {
+test("unverified OAC permits cost comparisons without claiming routes are feasible", () => {
   const ofo = { board: "GCX", key: "GCX:1", title: "Imbalance OFO" };
-  const result = solve(seedGraph, input, [ofo]);
-  assert.equal(result.cheapest.destination, "katy");
+  const result = solve(corridorGraph, input, [ofo]);
+  assert.equal(result.cheapest.destination, "agua-dulce");
   assert.equal(result.bestNetback.destination, "hsc");
-  assert.deepEqual(result.bestNetback.segments.find(({ id }) => id === "gcx-agua").ofos, [ofo]);
-  assert.ok(result.routes.some((route) => !route.feasible));
-  const blocked = solve(seedGraph, { ...input, demand: 100000 });
+  assert.deepEqual(result.cheapest.segments.find(({ id }) => id === "gcx-agua").ofos, [ofo]);
+  assert.deepEqual(result.bestNetback.path, ["delaware", "waha", "lockhart", "hsc"]);
+  assert.ok(result.routes.every((route) => !route.feasible && route.capacityStatus === "unverified"));
+  const blocked = solve(withCapacity(corridorGraph, [{ edgeId: "del-waha", oac: 0 }]), input);
   assert.equal(blocked.cheapest, null);
   assert.equal(blocked.bestNetback, null);
-  assert.throws(() => solve(seedGraph, { ...input, demand: 0 }), /positive delivered volume/);
+  assert.ok(blocked.routes.every((route) => route.capacityStatus === "constrained"));
+  assert.throws(() => solve(corridorGraph, { ...input, demand: 0 }), /positive delivered volume/);
 });
 
-test("each Gulf Coast delivery has its own cheapest feasible route and fuel requirement", () => {
-  const ofo = { board: "GCX", key: "GCX:1", title: "Imbalance OFO" };
-  const delaware = solve(seedGraph, input, [ofo]);
-  const { katy, hsc } = delaware.cheapestByDestination;
+test("destination rankings preserve unverified paths and omit constrained paths", () => {
+  const { cheapestByDestination: { katy, "agua-dulce": aguaDulce, hsc } } = solve(corridorGraph, input);
   assert.deepEqual(katy.path, ["delaware", "waha", "katy"]);
-  assert.deepEqual(hsc.path, ["delaware", "waha", "agua-dulce", "hsc"]);
-  assert.equal(katy.deliveredCost.toFixed(5), "2.78083");
-  assert.equal(hsc.deliveredCost.toFixed(5), "2.98792");
-  assert.equal(hsc.inletVolume.toFixed(5), "36291.89869");
-  assert.equal(hsc.fuelVolume.toFixed(5), "1291.89869");
-  assert.deepEqual(hsc.segments.flatMap(({ ofos }) => ofos), [ofo]);
-  assert.ok(katy.segments.every(({ ofos }) => ofos.length === 0));
+  assert.deepEqual(aguaDulce.path, ["delaware", "waha", "agua-dulce"]);
+  assert.deepEqual(hsc.path, ["delaware", "waha", "lockhart", "hsc"]);
+  assert.equal(hsc.capacityStatus, "unverified");
+  assert.equal(hsc.feasible, false);
+  assert.equal(hsc.fuelVolume, hsc.inletVolume - input.demand);
+  assert.ok(Math.abs(hsc.inletVolume - input.demand / (0.9925 * 0.955 * 0.987)) < 1e-9);
 
-  const wahaInput = { ...input, origin: "waha" };
-  const waha = solve(seedGraph, { ...wahaInput, demand: 20000 });
-  assert.equal(waha.cheapestByDestination.katy.deliveredCost.toFixed(5), "2.63959");
-  assert.deepEqual(waha.cheapestByDestination.hsc.path, ["waha", "katy", "hsc"]);
-  assert.equal(waha.cheapestByDestination.hsc.deliveredCost.toFixed(5), "2.77346");
-  assert.equal(waha.cheapestByDestination.hsc.fuelVolume.toFixed(5), "406.60154");
-
-  const constrained = solve(seedGraph, { ...wahaInput, demand: 40000 });
-  assert.ok(constrained.cheapestByDestination.katy);
+  const constrained = solve(withCapacity(corridorGraph, [{ edgeId: "hpl-hsc", oac: 0 }]), input);
+  assert.equal(constrained.cheapestByDestination.katy.capacityStatus, "unverified");
   assert.equal(constrained.cheapestByDestination.hsc, null);
-  const southTexas = constrained.routes.find(({ path }) => path.includes("agua-dulce"));
-  assert.deepEqual(southTexas.segments.filter(({ constrained }) => constrained).map(({ id }) => id), ["agua-hsc"]);
-  assert.equal(southTexas.segments.find(({ id }) => id === "agua-hsc").required.toFixed(2), "40404.04");
+  assert.equal(constrained.routes.find(({ destination }) => destination === "hsc").capacityStatus, "constrained");
 });
 
-test("only fresh normalized OAC replaces illustrative capacity and can block a route", async () => {
-  const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, new Set(seedGraph.edges.map(({ id }) => id)), now,
+test("only fresh normalized OAC replaces unknown capacity and zero OAC can block a route", async () => {
+  const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, new Set(corridorGraph.edges.map(({ id }) => id)), now,
     jsonFeed({ segments: [
       { edgeId: "gcx-agua", oac: 0, scheduledVolume: 100, asOf: iso(now), sourceUrl },
       { edgeId: "php-katy", oac: 0, asOf: iso(now - 13 * 3600000), sourceUrl },
     ] }));
   assert.equal(capacity.status, "partial");
-  const graph = withCapacity(seedGraph, capacity.rows);
-  assert.equal(graph.edges.find(({ id }) => id === "php-katy").capacitySource, "illustrative");
+  const graph = withCapacity(corridorGraph, capacity.rows);
+  assert.equal(graph.edges.find(({ id }) => id === "php-katy").capacitySource, "unreported");
   const gcx = graph.edges.find(({ id }) => id === "gcx-agua");
   assert.equal(gcx.capacitySource, "reported");
   assert.equal(gcx.scheduledVolume, 100);
   const result = solve(graph, input);
-  assert.equal(result.bestNetback.destination, "katy");
+  assert.equal(result.cheapest.destination, "katy");
   assert.ok(result.routes.some((route) => route.segments.some(({ id, constrained }) => id === gcx.id && constrained)));
+});
+
+test("a route fits reported OAC only when all its segments report enough capacity", () => {
+  const rows = [{ edgeId: "del-waha", oac: 50000 }, { edgeId: "php-katy", oac: 50000 }];
+  const result = solve(withCapacity(corridorGraph, rows), input);
+  assert.deepEqual(result.routes.filter(({ feasible }) => feasible).map(({ destination }) => destination), ["katy"]);
+  assert.equal(result.routes.find(({ destination }) => destination === "katy").capacityStatus, "fits-reported");
 });
 
 test("routing retains the newest reported capacity through replays and expires old observations", async () => {
@@ -110,9 +117,10 @@ test("routing retains the newest reported capacity through replays and expires o
   const alerts = await tracker.observe([], [earlier], replayAt);
   assert.deepEqual(alerts.map(({ delta }) => delta), [-90000]);
   assert.deepEqual(tracker.capacityAt(replayAt), [latest]);
-  const graph = withCapacity(seedGraph, tracker.capacityAt(replayAt));
-  assert.equal(solve(graph, input).bestNetback.destination, "katy");
+  const graph = withCapacity(corridorGraph, tracker.capacityAt(replayAt));
+  assert.equal(solve(graph, input).cheapest.destination, "katy");
   assert.deepEqual(tracker.capacityAt(now + 12 * 3600000 + 1), []);
+  assert.equal(solve(withCapacity(corridorGraph, []), input).cheapest.capacityStatus, "unverified");
 });
 
 test("v1 feed reports partial coverage and keeps only relevant non-expired OFOs", async () => {

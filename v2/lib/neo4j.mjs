@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
-import { memoryGraph, seedGraph, validateGraph } from "./graph.mjs";
+import { corridorGraph, memoryGraph, validateGraph } from "./graph.mjs";
 
-const corridor = "ebb-permian-mvp-v2";
+const corridor = "ebb-permian-sourced-v2";
 
 export function graphStore(env = process.env) {
   if (!env.NEO4J_URI) return memoryGraph();
@@ -18,13 +18,13 @@ export function graphStore(env = process.env) {
           await session.executeWrite(async (tx) => {
             await tx.run(
               "UNWIND $nodes AS n MERGE (p:EBBV2Point {corridor: $corridor, id: n.id}) ON CREATE SET p += n",
-              { corridor, nodes: seedGraph.nodes },
+              { corridor, nodes: corridorGraph.nodes },
             );
             await tx.run(
               `UNWIND $edges AS e
                MATCH (a:EBBV2Point {corridor: $corridor, id: e.from}), (b:EBBV2Point {corridor: $corridor, id: e.to})
                MERGE (a)-[s:EBBV2_SEGMENT {id: e.id}]->(b) ON CREATE SET s += e`,
-              { corridor, edges: seedGraph.edges },
+              { corridor, edges: corridorGraph.edges },
             );
           });
         } finally {
@@ -45,7 +45,7 @@ export function graphStore(env = process.env) {
           const read = (records) => records.map((r) => Object.fromEntries(
             Object.entries(r.get("properties")).map(([key, value]) => [key, neo4j.isInt(value) ? value.toNumber() : value]),
           ));
-          return { nodes: read(nodes.records), edges: read(edges.records) };
+          return { nodes: read(nodes.records), edges: read(edges.records).map((edge) => ({ capacity: null, ...edge })) };
         });
         return validateGraph(result);
       } finally {
