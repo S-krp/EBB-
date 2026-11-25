@@ -40,7 +40,11 @@ export function alertTracker({ webhookUrl, fetcher = fetch, log = console } = {}
               method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(alert),
               signal: AbortSignal.timeout(5_000), redirect: "error",
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (!response.ok) {
+              const status = response.status;
+              if (status < 400 || status >= 500 || [408, 425, 429].includes(status)) throw new Error(`HTTP ${status}`);
+              log.warn(`[v2 alert] Webhook permanently rejected an alert (HTTP ${status}); discarding delivery.`);
+            }
           }
           pending.delete(alert.id);
         } catch {

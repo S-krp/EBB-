@@ -121,6 +121,24 @@ test("webhook retries failures, deduplicates OFOs and emits capacity deltas once
   assert.equal(alerts.length, 2);
 });
 
+test("permanent webhook rejection does not block later alerts", async () => {
+  const posts = [];
+  const statuses = [422, 429, 204, 204];
+  const tracker = alertTracker({
+    webhookUrl: sourceUrl,
+    fetcher: async (_, options) => {
+      posts.push(JSON.parse(options.body).key);
+      return new Response(null, { status: statuses.shift() });
+    },
+    log: { warn() {} },
+  });
+  const notices = ["rejected", "rate-limited", "following"].map((key) => ({ key }));
+  await tracker.observe(notices, [], now);
+  assert.deepEqual(posts, ["rejected", "rate-limited"]);
+  await tracker.observe(notices, [], now + 2000);
+  assert.deepEqual(posts, ["rejected", "rate-limited", "rate-limited", "following"]);
+});
+
 test("unconfigured webhook writes a dry-run alert without networking", async () => {
   const messages = [];
   const tracker = alertTracker({ fetcher: () => assert.fail("Unexpected network call"), log: { info: (...args) => messages.push(args) } });
