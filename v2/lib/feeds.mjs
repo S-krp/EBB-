@@ -15,17 +15,35 @@ export function webUrl(value) {
   }
 }
 
-async function readJson(url, fetcher) {
+const revalidated = new Map();
+
+async function readJson(url, fetcher, { revalidate = false } = {}) {
   if (!webUrl(url)) throw new Error("Feed is not an HTTP(S) URL");
-  const response = await fetcher(url, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
+  const cached = revalidate ? revalidated.get(url) : undefined;
+  const response = await fetcher(url, {
+    signal: AbortSignal.timeout(10_000), cache: "no-store",
+    ...(cached && { headers: { "If-None-Match": cached.etag } }),
+  });
+  if (cached && response.status === 304) return cached.data;
   if (!response.ok) throw new Error(`Feed HTTP ${response.status}`);
-  return response.json();
+  const data = await response.json();
+  const etag = revalidate && response.headers?.get("etag");
+  if (etag) revalidated.set(url, { etag, data });
+  else revalidated.delete(url);
+  return data;
+}
+
+export function ofoFeedUrl(value) {
+  if (!webUrl(value)) return value;
+  const url = new URL(value);
+  url.searchParams.set("category", "OFO");
+  return url.href;
 }
 
 export async function readNotices(env, boards, now, fetcher = fetch) {
   const url = env.V1_NOTICE_FEED_URL ?? (env.VERCEL ? "" : DEFAULT_NOTICE_URL);
   if (!url) return { notices: [], status: "disabled" };
-  const data = await readJson(url, fetcher);
+  const data = await readJson(ofoFeedUrl(url), fetcher, { revalidate: true });
   if (!Array.isArray(data.notices) || !Array.isArray(data.status)) throw new Error("Unrecognized EBB Watch feed");
   now ??= Date.now();
   const missed = [...boards].filter((board) => !data.status.some((row) =>

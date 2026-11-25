@@ -173,13 +173,34 @@ test("feed timestamps are checked against receipt time, not request time", async
 test("Vercel uses the configured v1 feed and never falls back to the Devin preview", async () => {
   const url = "https://ebb-watch-v1.vercel.app/api/feed";
   const configured = await readNotices({ VERCEL: "1", V1_NOTICE_FEED_URL: url }, new Set(), now, async (requested) => {
-    assert.equal(requested, url);
+    assert.equal(requested, `${url}?category=OFO`);
     return Response.json({ status: [], notices: [] });
   });
   assert.equal(configured.status, "connected");
   assert.deepEqual(await readNotices({ VERCEL: "1" }, new Set(), now, () => assert.fail("Unexpected feed request")), {
     notices: [], status: "disabled",
   });
+});
+
+test("the v1 feed is requested for OFOs only and revalidated with its ETag", async () => {
+  const url = "https://ebb-watch.example/api/feed?board=PHP";
+  const feed = {
+    status: [{ board: "PHP", lastSuccess: iso(now - 2000) }],
+    notices: [{ id: "1", board: "PHP", title: "OFO", category: "OFO", sourceUrl }],
+  };
+  const requests = [];
+  const fetcher = async (requested, init) => {
+    requests.push([requested, init.headers?.["If-None-Match"]]);
+    return requests.length === 1
+      ? Response.json(feed, { headers: { ETag: '"r1"' } })
+      : new Response(null, { status: 304, headers: { ETag: '"r1"' } });
+  };
+  const first = await readNotices({ V1_NOTICE_FEED_URL: url }, new Set(["PHP"]), now, fetcher);
+  const second = await readNotices({ V1_NOTICE_FEED_URL: url }, new Set(["PHP"]), now, fetcher);
+  assert.deepEqual(second, first);
+  assert.equal(second.status, "connected");
+  assert.deepEqual(second.notices.map(({ key }) => key), ["PHP:1:OFO"]);
+  assert.deepEqual(requests, [[`${url}&category=OFO`, undefined], [`${url}&category=OFO`, '"r1"']]);
 });
 
 test("all five Central deadlines roll over in DST and track the intended gas day", () => {
