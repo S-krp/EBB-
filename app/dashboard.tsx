@@ -211,7 +211,7 @@ export default function Dashboard() {
         </button>
         <a href="#notice-feed" className="self-center rounded text-sm font-bold text-signal hover:underline md:hidden">Jump to notices <ArrowDown className="inline" size={14} /></a>
       </div>
-      {(feedError || manualMessage || busy) && <p role="status" className="rounded-md border border-line bg-panel px-4 py-2 text-sm text-soft">{feedError || manualMessage || "Sweeping public boards. This can take a few minutes."}</p>}
+      {(feedError || manualMessage || busy) && <p role="status" className="rounded-md border border-line bg-panel px-4 py-2 text-sm text-soft">{manualMessage || feedError || "Sweeping public boards. This can take a few minutes."}</p>}
 
       <section aria-label="Notice and board statistics" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         {metrics.map(({ label, count, caption, icon: Icon, color }) => <div key={label} className="rounded-lg border border-line bg-panel p-2.5 sm:p-4">

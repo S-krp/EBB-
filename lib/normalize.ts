@@ -18,6 +18,11 @@ export function noticeDate(input: string | null | undefined, zone = centralZone)
   return null;
 }
 
+export function transwesternEndDate(input: string | null | undefined) {
+  const date = noticeDate(input);
+  return date && DateTime.fromISO(date, { zone: centralZone }).toISODate() === "2999-12-31" ? null : date;
+}
+
 export function normalize(raw: RawNotice): Notice {
   const subject = raw.sourceType + " " + raw.title;
   const emergency = /\bemergenc(?:y|ies)\b/i.test(subject) || /\bemergency (?:notice|shutdown|posting|condition|response)\b/i.test(raw.body);

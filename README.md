@@ -25,7 +25,9 @@ Boards are independent: an upstream failure is shown in Board Status without cle
 | Transwestern | Energy Transfer iPost Critical, Non-Critical, and Planned Service Outage; current public listings |
 | Carlsbad Gateway | WhiteWater's public Quorum Critical and Non-Critical notices with pagination |
 
-No login-walled boards are queried. The scraper captures the published inline text, not binary attachments; the original link is included for verification. Source timestamps without offsets are interpreted as Central Time. Notices are keyed by board, pipeline and notice ID; a SHA-256 content hash prevents unchanged notices from being rewritten.
+No login-walled boards are queried. The scraper captures the published inline text, not binary attachments; the original link is included for verification. Source timestamps without offsets are interpreted as Central Time. Notices are keyed by board, pipeline and notice ID; rows are only rewritten when their SHA-256 hash or derived fields change.
+
+After upgrading an existing database, run `npm run renormalize` once to refresh stored LINK and Transwestern notices that are no longer listed by their boards. Current listings are refreshed by the next sweep.
 
 ## Deploy
 

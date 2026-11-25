@@ -1,14 +1,26 @@
 import { randomUUID } from "node:crypto";
-import { claimSweep, releaseSweep, saveBoard } from "./db";
+import { claimSweep, recordSweepFinish, releaseSweep, saveBoard, sweepCooldownSeconds } from "./db";
 import { boardIds, type BoardStatus, type Notice } from "./model";
 import { normalize } from "./normalize";
 import { scrapeBoard } from "./scrapers";
 
-export async function sweep(): Promise<BoardStatus[] | null> {
+export class SweepCooldown extends Error {
+  constructor(readonly retryAfter: number) {
+    super(`Please wait ${retryAfter} seconds before starting another sweep.`);
+  }
+}
+
+export async function sweep({ manual = false } = {}): Promise<BoardStatus[] | null> {
   const owner = randomUUID();
   if (!await claimSweep(owner)) return null;
-  const lastAttempt = new Date().toISOString();
+  let started = false;
   try {
+    if (manual) {
+      const retriesIn = await sweepCooldownSeconds();
+      if (retriesIn) throw new SweepCooldown(retriesIn);
+    }
+    started = true;
+    const lastAttempt = new Date().toISOString();
     const runs = await Promise.allSettled(boardIds.map(async (board) => {
       const unique = new Map<string, Notice>();
       const result = await scrapeBoard(board).catch((error: unknown) => ({
@@ -37,6 +49,10 @@ export async function sweep(): Promise<BoardStatus[] | null> {
     if (errors.length) throw new AggregateError(errors.map(({ reason }) => reason), "Could not save board sweep results");
     return runs.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
   } finally {
-    await releaseSweep(owner);
+    try {
+      if (started) await recordSweepFinish();
+    } finally {
+      await releaseSweep(owner);
+    }
   }
 }
