@@ -33,9 +33,10 @@ export function normalize(raw: RawNotice): Notice {
   const tolerance = "(?:tolerances?|imbalances?|percent(?:age)? of (?:scheduled|confirmed))";
   const percent = "(?:[±+−-]\\s*)?\\d+(?:\\.\\d+)?\\s*(?:%|percent\\b)";
   const nearby = new RegExp(`(${tolerance})[^.!?%\\n]{0,65}?(${percent})|(${percent})[^.!?\\n]{0,35}?(${tolerance})`, "gi");
-  const tolerances = category === "OFO"
-    ? [...new Set([...subject.concat("\n", raw.body).matchAll(nearby)].map((m) => (m[2] || m[3]).replace(/\s*percent/i, "%").replace(/\s/g, "")))]
-    : [];
+  const tableCell = new RegExp(`^OFO in effect:[ \\t]*(?:\\n[ \\t]*)?(?:[^%\\n]{1,60}\\n[ \\t]*)?(${percent})[ \\t]*/[ \\t]*[\\d,]+`, "gim");
+  const matches = category === "OFO" ? [...subject.concat("\n", raw.body).matchAll(nearby)].map((m) => m[2] || m[3]) : [];
+  if (category === "OFO" && raw.board === "LINK") matches.push(...[...raw.body.matchAll(tableCell)].map((m) => m[1]));
+  const tolerances = [...new Set(matches.map((m) => m.replace(/\s*percent/i, "%").replace(/\s/g, "")))];
   const hash = createHash("sha256").update(JSON.stringify([
     raw.board, raw.pipeline, raw.id, raw.title, raw.sourceType, raw.critical, raw.postedAt,
     raw.effectiveFrom, raw.effectiveThrough, raw.sourceUrl, raw.body, category, emergency, tolerances,

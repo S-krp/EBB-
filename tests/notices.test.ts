@@ -43,6 +43,16 @@ test("preserves maintenance category and critical flag for a critical outage", (
   assert.equal(result.critical, true);
 });
 
+test("reads LINK OFO table cells without treating narrative thresholds as tolerances", () => {
+  const result = normalize({
+    ...notice, board: "LINK", id: "185864",
+    body: "Scheduled quantities plus 500 Dth or 108% of scheduled delivery quantities.\n"
+      + "See below for tolerance percentages:\n\nOFO In Effect:\nNo DS\n10% / 500\n\n"
+      + "No OFO*\n\nOFO In Effect:\nNo DP\n8% / 500",
+  });
+  assert.deepEqual(result.tolerances, ["10%", "8%"]);
+});
+
 test("normalizes portal timestamps and suppresses open-ended placeholders", () => {
   assert.equal(noticeDate("11/24/2026  4:16:31PM"), "2026-11-24T22:16:31.000Z");
   assert.equal(noticeDate("Nov 24 2026  6:56AM"), "2026-11-24T12:56:00.000Z");
