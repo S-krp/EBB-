@@ -23,9 +23,13 @@ export async function POST(request) {
   }
   try {
     const snapshot = await engine().read();
+    const now = new Date();
+    const notices = snapshot.notices
+      .filter(({ effectiveThrough }) => !(Date.parse(effectiveThrough) < now))
+      .map((notice) => ({ ...notice, upcoming: Date.parse(notice.effectiveFrom) > now }));
     return Response.json({
-      ...snapshot, cycles: cycleClock(),
-      result: solve(snapshot.graph, input, snapshot.notices.filter(({ upcoming }) => !upcoming)),
+      ...snapshot, cycles: cycleClock(now),
+      result: solve(snapshot.graph, input, notices),
     }, { headers });
   } catch (error) {
     const invalid = error instanceof RangeError;
