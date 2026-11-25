@@ -129,26 +129,33 @@ function linkEffectiveThrough(record: LinkNotice) {
 }
 
 // Enbridge has no per-notice endpoint: each pipeline response carries every critical notice from the
-// last ~90 days with full HTML bodies (up to ~50 MB uncompressed), so it gets a longer budget and one retry.
-async function linkPipelineNotices(code: string) {
+// last ~90 days with full HTML bodies (up to ~50 MB uncompressed), so it gets a longer budget and one retry,
+// bounded by a board-wide deadline so LINK still saves inside the sweep's 300-second limit.
+const linkBoardBudgetMs = 150_000;
+
+async function linkPipelineNotices(code: string, deadline: number) {
   const url = `${enbridge}/api/notices?businessUnit=${code}&noticeType=CRI`;
   for (let attempt = 1; ; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("LINK sweep time budget exhausted");
     try {
-      return await (await request(url, undefined, 60_000)).json() as { Notices?: { Notice?: LinkNotice | LinkNotice[] } };
+      return await (await request(url, undefined, Math.min(60_000, remaining))).json() as
+        { Notices?: { Notice?: LinkNotice | LinkNotice[] } };
     } catch (error) {
-      if (attempt >= 2) throw error;
+      if (attempt >= 2 || deadline - Date.now() <= 0) throw error;
     }
   }
 }
 
 async function scrapeLink(collect: Collect) {
+  const deadline = Date.now() + linkBoardBudgetMs;
   await collect("critical listing", async () => {
     const index = await (await request(`${enbridge}/api/notices-listings?noticeType=CRI`)).json() as { pipelines: LinkListing[] };
     if (!Array.isArray(index.pipelines)) throw new Error("LINK pipelines missing from listing");
     await mapLimited(index.pipelines.filter((pipeline) => pipeline.notices.length), 2, (pipeline) => collect(pipeline.pipelineCode, async () => {
       const code = encodeURIComponent(pipeline.pipelineCode);
       const routeCode = encodeURIComponent(linkRouteCodes[pipeline.pipelineCode] ?? pipeline.pipelineCode);
-      const response = await linkPipelineNotices(code);
+      const response = await linkPipelineNotices(code, deadline);
       const records = [response.Notices?.Notice ?? []].flat();
       const byId = new Map(records.map((record) => [record["@Noticeid"], record]));
       for (const { noticeId } of pipeline.notices) {
