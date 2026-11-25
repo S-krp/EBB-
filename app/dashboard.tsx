@@ -1,7 +1,8 @@
 "use client";
 
 import { Activity, AlertTriangle, ArrowDown, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Clock3, ExternalLink, LayoutGrid, List, Radio, RefreshCw, Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createFeedRefresh } from "../lib/feed-refresh";
 import { boardIds, boards, categories, type Category, type Notice, type Snapshot } from "../lib/model";
 import { emptyNoticeFilters, filterNotices, hasInvertedRange, indexNotices, readNoticeFilters, writeNoticeFilters, type NoticeFilters } from "../lib/notice-filters";
 import { countNonLiftedOfos, isLifted } from "../lib/notice-status";
@@ -137,16 +138,7 @@ export default function Dashboard() {
     setPage(1);
   }
 
-  const refresh = useCallback(async () => {
-    try {
-      const response = await fetch("/api/feed", { cache: "no-store" });
-      if (!response.ok) throw new Error("Could not load the notice feed.");
-      setSnapshot(await response.json() as Snapshot);
-      setFeedError("");
-    } catch {
-      setFeedError("Could not load the notice feed. Retrying automatically.");
-    }
-  }, []);
+  const refresh = useMemo(() => createFeedRefresh(setSnapshot, setFeedError), []);
   useEffect(() => {
     const initial = window.setTimeout(() => void refresh(), 0);
     const interval = window.setInterval(() => void refresh(), 60_000);
