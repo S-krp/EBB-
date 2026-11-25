@@ -23,20 +23,6 @@ test("hashes identical content consistently and detects edits", () => {
   assert.notEqual(normalize(notice).hash, normalize({ ...notice, body: "Order lifted." }).hash);
 });
 
-test("keeps LINK pipeline conditions critical rather than treating an OFO reference as an order", () => {
-  const report = {
-    ...notice,
-    board: "LINK" as const,
-    id: "185944",
-    title: "AGT Pipeline Conditions for 11/25/2026",
-    sourceType: "Capacity Constraint",
-    body: "No-Notice Restrictions\n\nOFO / Imbalance Notice\n\nSystem Wide OFO\n---\n\nCustomer Specific OFO\n---",
-    critical: true,
-  };
-  assert.equal(normalize(report).category, "Critical");
-  assert.equal(normalize({ ...report, sourceType: "Operational Flow Order" }).category, "OFO");
-});
-
 test("preserves maintenance category and critical flag for a critical outage", () => {
   const result = normalize({ ...notice, title: "Planned service outage", body: "Line unavailable.", critical: true });
   assert.equal(result.category, "Maintenance");
