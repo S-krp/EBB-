@@ -52,7 +52,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
   useEffect(() => { element.current?.showModal(); }, []);
   useEffect(() => { element.current?.scrollTo({ top: 0 }); }, [notice]);
   const pager = "grid size-11 shrink-0 place-items-center rounded-md border border-line text-soft hover:text-white disabled:opacity-40";
-  return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) close(); }} aria-labelledby="notice-title"
+  return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }} aria-labelledby="notice-title"
     onKeyDown={(event) => {
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
     }}
@@ -64,7 +64,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
           {position >= 0 && <span className="mr-1 font-mono text-xs text-faint">{position + 1} / {total}</span>}
           <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous notice" title="Previous notice (←)" className={pager}><ChevronLeft size={17} /></button>
           <button type="button" onClick={() => step(1)} disabled={position < 0 || position >= total - 1} aria-label="Next notice" title="Next notice (→)" className={pager}><ChevronRight size={17} /></button>
-          <button type="button" autoFocus onClick={close} aria-label="Close notice" className={pager}><X size={17} /></button>
+          <button type="button" autoFocus onClick={() => element.current?.close()} aria-label="Close notice" className={pager}><X size={17} /></button>
         </div>
       </div>
       <Badge notice={notice} />
