@@ -52,7 +52,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
   useEffect(() => { element.current?.showModal(); }, []);
   useEffect(() => { element.current?.scrollTo({ top: 0 }); }, [notice]);
   const pager = "grid size-11 shrink-0 place-items-center rounded-md border border-line text-soft hover:text-white disabled:opacity-40";
-  return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) close(); }} aria-labelledby="notice-title"
+  return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }} aria-labelledby="notice-title"
     onKeyDown={(event) => {
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
     }}
@@ -64,7 +64,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
           {position >= 0 && <span className="mr-1 font-mono text-xs text-faint">{position + 1} / {total}</span>}
           <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous notice" title="Previous notice (←)" className={pager}><ChevronLeft size={17} /></button>
           <button type="button" onClick={() => step(1)} disabled={position < 0 || position >= total - 1} aria-label="Next notice" title="Next notice (→)" className={pager}><ChevronRight size={17} /></button>
-          <button type="button" autoFocus onClick={close} aria-label="Close notice" className={pager}><X size={17} /></button>
+          <button type="button" autoFocus onClick={() => element.current?.close()} aria-label="Close notice" className={pager}><X size={17} /></button>
         </div>
       </div>
       <Badge notice={notice} />
@@ -128,6 +128,9 @@ export default function Dashboard() {
   const [chosenView, setView] = useState<"table" | "cards" | null>(null);
   const view = chosenView ?? (isNarrow ? "cards" : "table");
   const [selected, setSelected] = useState<Notice | null>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const selectedLauncher = useRef<HTMLButtonElement>(null);
+  const feedHeading = useRef<HTMLHeadingElement>(null);
   const [page, setPage] = useState(1);
 
   function updateFilters(changes: Partial<NoticeFilters>) {
@@ -165,7 +168,18 @@ export default function Dashboard() {
   const notices = useMemo(() => snapshot?.notices ?? [], [snapshot]);
   const noticeIndex = useMemo(() => indexNotices(notices), [notices]);
   const filtered = useMemo(() => filterNotices(noticeIndex, filters), [noticeIndex, filters]);
-  const selectedIndex = selected ? filtered.findIndex((notice) => noticeKey(notice) === noticeKey(selected)) : -1;
+  const selectedKey = selected ? noticeKey(selected) : null;
+  const selectedIndex = selectedKey ? filtered.findIndex((notice) => noticeKey(notice) === selectedKey) : -1;
+  const openNotice = (notice: Notice, launcher: HTMLButtonElement | null) => {
+    opener.current = launcher;
+    setSelected(notice);
+  };
+  const closeDrawer = () => {
+    const original = opener.current;
+    (original?.isConnected ? original : selectedLauncher.current ?? feedHeading.current)?.focus();
+    opener.current = null;
+    setSelected(null);
+  };
   const stepSelected = (delta: number) => {
     const next = filtered[selectedIndex + delta];
     if (selectedIndex < 0 || !next) return;
@@ -232,7 +246,7 @@ export default function Dashboard() {
 
       <section aria-labelledby="notice-feed" className="overflow-hidden rounded-lg border border-line bg-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
-          <div className="flex items-center gap-2.5"><h2 id="notice-feed" className="text-base font-bold">Live Notice Feed</h2><span className="rounded-full bg-signal/10 px-2 py-0.5 font-mono text-xs text-signal">{filtered.length}</span></div>
+          <div className="flex items-center gap-2.5"><h2 id="notice-feed" ref={feedHeading} tabIndex={-1} className="text-base font-bold">Live Notice Feed</h2><span className="rounded-full bg-signal/10 px-2 py-0.5 font-mono text-xs text-signal">{filtered.length}</span></div>
           <div aria-label="Feed layout" className="flex rounded-md border border-line bg-inset p-0.5">
             {(["table", "cards"] as const).map((option) => {
               const Icon = option === "table" ? List : LayoutGrid;
@@ -271,11 +285,11 @@ export default function Dashboard() {
             <th scope="col" className="hidden w-[15%] px-4 py-3 lg:table-cell"><span className="flex items-center gap-1">Posted (CT) <ArrowDown size={11} /></span></th>
             <th scope="col" className="hidden w-[7rem] px-4 py-3 lg:table-cell">Original</th>
           </tr></thead>
-          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={() => setSelected(notice)} className={`cursor-pointer border-l-2 align-top hover:bg-inset lg:align-middle ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : "border-l-transparent"}`}>
+          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={(event) => openNotice(notice, event.currentTarget.querySelector("button"))} className={`cursor-pointer border-l-2 align-top hover:bg-inset lg:align-middle ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : "border-l-transparent"}`}>
             <td className="hidden px-4 py-3 wrap-anywhere lg:table-cell"><div className="text-xs font-bold">{notice.pipeline}</div><div className="mt-1 font-mono text-xs text-faint">#{notice.id}</div></td>
             <td className="px-3 py-3 wrap-anywhere lg:px-4">
               <div className="mb-1 text-xs text-soft lg:hidden">{notice.pipeline} <span className="font-mono text-faint">#{notice.id}</span></div>
-              <button type="button" className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button>
+              <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); openNotice(notice, event.currentTarget); }}>{notice.title}</button>
               <div className="mt-2 space-y-1 text-xs text-soft lg:hidden">
                 <div>Effective: {windowLabel(notice)}</div>
                 <div>Posted: {stamp(notice.postedAt)} CT</div>
@@ -290,7 +304,7 @@ export default function Dashboard() {
         </table>
         : <div className="grid gap-3 p-3 md:grid-cols-2 md:p-4 xl:grid-cols-3">{visible.map((notice) => <article key={noticeKey(notice)} className={`flex min-w-0 flex-col gap-2 rounded-lg border border-line border-l-2 bg-inset p-3 wrap-anywhere sm:p-4 ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : ""}`}>
           <div className="flex justify-between gap-2 text-xs text-soft"><span>{notice.pipeline}</span><span className="font-mono">#{notice.id}</span></div>
-          <button type="button" className="text-left text-base font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
+          <button type="button" ref={noticeKey(notice) === selectedKey ? selectedLauncher : undefined} className="text-left text-base font-bold hover:text-signal" onClick={(event) => openNotice(notice, event.currentTarget)}>{notice.title}</button>
           <Badge notice={notice} />
           <div className="mt-auto flex flex-wrap justify-between gap-1 border-t border-line pt-2 text-xs text-soft"><span>Effective: {windowLabel(notice)}</span><span>Posted: {stamp(notice.postedAt)} CT</span><Source url={notice.sourceUrl} title={notice.title} /></div>
         </article>)}</div>}
@@ -304,6 +318,6 @@ export default function Dashboard() {
       </section>
       <footer className="flex flex-wrap justify-between gap-2 text-xs text-faint"><span>EBB Watch · Public informational postings</span><span>All displayed times are Central Time · Verify critical details at the source.</span></footer>
     </main>
-    {selected && <Drawer notice={selected} position={selectedIndex} total={filtered.length} step={stepSelected} close={() => setSelected(null)} />}
+    {selected && <Drawer notice={selected} position={selectedIndex} total={filtered.length} step={stepSelected} close={closeDrawer} />}
   </>;
 }
