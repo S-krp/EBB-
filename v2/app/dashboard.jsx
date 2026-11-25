@@ -148,7 +148,6 @@ export default function Dashboard() {
     void poll();
     const pollTimer = setInterval(poll, 30_000);
     const clockTimer = setInterval(() => setNow(Date.now()), 1_000);
-    setNow(Date.now());
     return () => { controller.abort(); clearInterval(pollTimer); clearInterval(clockTimer); };
   }, []);
 
