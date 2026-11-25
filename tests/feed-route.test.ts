@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { GET } from "../app/api/feed/route";
+import { GET as getNotice } from "../app/api/notices/[board]/[id]/route";
 import { readFeed, saveBoard } from "../lib/db";
 import type { Snapshot } from "../lib/model";
 import { normalize } from "../lib/normalize";
@@ -58,4 +59,21 @@ test("successful sweeps prune notices that left the board and ended more than 90
 
   await saveBoard([notice("6", "Current notice")], status);
   assert.deepEqual((await readFeed()).notices.map(({ id }) => id).sort(), ["1", "2", "4", "5", "6", "7"]);
+});
+
+test("loads table blocks only for the selected notice, not the polling feed", async () => {
+  const bodyBlocks = [{ type: "table" as const, rows: [[{ text: "301839", header: false, colSpan: 1, rowSpan: 1 }]] }];
+  const formatted = normalize({ ...notice("8", "Location Performance Update"), bodyBlocks });
+  await saveBoard([formatted], status);
+  const feed = await (await get()).json() as Snapshot;
+  assert.equal("bodyBlocks" in feed.notices.find(({ id }) => id === "8")!, false);
+  const detail = (pipeline: string, board = "EPNG", id = "8") => getNotice(
+    new Request(`http://localhost/api/notices/${board}/${id}?${new URLSearchParams({ pipeline })}`),
+    { params: Promise.resolve({ board, id }) },
+  );
+  assert.deepEqual(await (await detail(formatted.pipeline)).json(), { bodyBlocks });
+  assert.deepEqual(await (await detail(formatted.pipeline, "EPNG", "6")).json(), { bodyBlocks: null });
+  assert.equal((await detail("Other pipeline")).status, 404);
+  assert.equal((await detail(formatted.pipeline, "TW")).status, 404);
+  assert.equal((await detail(formatted.pipeline, "invalid")).status, 400);
 });

@@ -68,6 +68,21 @@ function NoticeBlocks({ blocks, title }: { blocks: NoticeBlock[]; title: string 
 
 function Drawer({ notice, position, total, step, close }: { notice: Notice; position: number; total: number; step: (delta: number) => void; close: () => void }) {
   const element = useRef<HTMLDialogElement>(null);
+  const [formatted, setFormatted] = useState<{ key: string; blocks?: NoticeBlock[]; failed: boolean } | null>(null);
+  const key = `${noticeKey(notice)}|${notice.hash}`;
+  const content = formatted?.key === key ? formatted : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    const url = `/api/notices/${notice.board}/${encodeURIComponent(notice.id)}?${new URLSearchParams({ pipeline: notice.pipeline })}`;
+    fetch(url, { signal: controller.signal }).then(async (response) => {
+      if (!response.ok) throw new Error("Could not load formatted notice");
+      const data = await response.json() as { bodyBlocks: NoticeBlock[] | null };
+      if (!controller.signal.aborted) setFormatted({ key, blocks: data.bodyBlocks ?? undefined, failed: false });
+    }).catch(() => {
+      if (!controller.signal.aborted) setFormatted({ key, failed: true });
+    });
+    return () => controller.abort();
+  }, [key, notice.board, notice.id, notice.pipeline]);
   useEffect(() => { element.current?.showModal(); }, []);
   useEffect(() => {
     element.current?.scrollTo({ top: 0 });
@@ -98,7 +113,12 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
         </div>)}
       </dl>
       <h3 className="mb-3 text-sm font-bold">Notice text</h3>
-      <div className="text-base leading-relaxed text-slate-200"><NoticeBody notice={notice} /></div>
+      <div className="text-base leading-relaxed text-slate-200" aria-busy={!content}>
+        {!content ? <p className="text-soft" role="status">Loading formatted notice…</p> : <>
+          {content.failed && <p role="status" className="mb-3 text-sm text-amber-200">Formatting is unavailable. Showing plain text; open the original posting for the source layout.</p>}
+          <NoticeBody notice={{ ...notice, bodyBlocks: content.blocks }} />
+        </>}
+      </div>
       <a href={notice.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-8 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-bold text-signal hover:bg-inset">Open original posting <ExternalLink size={14} /></a>
     </div>
   </dialog>;

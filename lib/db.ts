@@ -6,7 +6,7 @@ import { and, eq, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { drizzle as drizzleSqlite, type AsyncRemoteCallback } from "drizzle-orm/sqlite-proxy";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import type { BoardStatus, Notice } from "./model";
+import type { BoardId, BoardStatus, Notice, NoticeBlock } from "./model";
 import * as pg from "./schema-pg";
 import * as sqlite from "./schema-sqlite";
 
@@ -131,6 +131,15 @@ export function readNotices(revision: string) {
 export async function readFeed() {
   const { revision, status } = await readFeedVersion();
   return { notices: await readNotices(revision), status };
+}
+
+export async function readNoticeBlocks(board: BoardId, pipeline: string, id: string) {
+  const connection = await database();
+  const matches = (table: typeof pg.notices | typeof sqlite.notices) => and(eq(table.board, board), eq(table.pipeline, pipeline), eq(table.id, id));
+  const rows = connection.kind === "pg"
+    ? await connection.db.select({ blocks: pg.notices.bodyBlocks }).from(pg.notices).where(matches(pg.notices))
+    : await connection.db.select({ blocks: sqlite.notices.bodyBlocks }).from(sqlite.notices).where(matches(sqlite.notices)).all();
+  return rows.length ? { bodyBlocks: rows[0].blocks ? JSON.parse(rows[0].blocks) as NoticeBlock[] : null } : null;
 }
 
 function nextRevision() {
