@@ -162,6 +162,37 @@ test("all five Central deadlines roll over in DST and track the intended gas day
   assert.equal(cycleClock(new Date("2026-03-08T02:30:00Z"))[0].deadline, "2026-03-08T10:00:00.000-05:00");
 });
 
+for (const { gasDay, priorDay, priorOffset, offset, beforeEvening, afterID3, hoursToID1 } of [
+  { gasDay: "2026-03-08", priorDay: "2026-03-07", priorOffset: "-06:00", offset: "-05:00",
+    beforeEvening: "2026-03-07T23:59:59.999Z", afterID3: "2026-03-08T01:00:00Z", hoursToID1: 14 },
+  { gasDay: "2026-11-01", priorDay: "2026-10-31", priorOffset: "-05:00", offset: "-06:00",
+    beforeEvening: "2026-10-31T22:59:59.999Z", afterID3: "2026-11-01T00:00:00Z", hoursToID1: 16 },
+]) {
+  test(`nomination deadlines and countdown cross the DST change for gas day ${gasDay}`, () => {
+    const beforeTimely = new Date(`${priorDay}T12:59:00${priorOffset}`);
+    const dayAhead = cycleClock(beforeTimely);
+    assert.deepEqual(dayAhead.filter((cycle) => cycle.gasDay === gasDay).map(({ name, deadline }) => [name, deadline]), [
+      ["Timely", `${priorDay}T13:00:00.000${priorOffset}`],
+      ["Evening", `${priorDay}T18:00:00.000${priorOffset}`],
+      ["ID1", `${gasDay}T10:00:00.000${offset}`],
+    ]);
+    const before = Date.parse(beforeEvening);
+    const [evening] = cycleClock(new Date(before));
+    assert.equal(evening.name, "Evening");
+    assert.equal(evening.remainingMs, 1);
+    assert.equal(cycleClock(new Date(before + 1))[0].name, "ID3");
+
+    const intraday = cycleClock(new Date(afterID3));
+    assert.equal(intraday.length, 5);
+    assert.equal(intraday[0].remainingMs, hoursToID1 * 3600000);
+    assert.deepEqual(intraday.filter((cycle) => cycle.gasDay === gasDay).map(({ name, deadline }) => [name, deadline]), [
+      ["ID1", `${gasDay}T10:00:00.000${offset}`],
+      ["ID2", `${gasDay}T14:30:00.000${offset}`],
+      ["ID3", `${gasDay}T19:00:00.000${offset}`],
+    ]);
+  });
+}
+
 test("webhook retries failures, deduplicates OFOs and emits capacity deltas once", async () => {
   const posts = [];
   const tracker = alertTracker({

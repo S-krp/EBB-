@@ -56,8 +56,17 @@ function Corridor({ graph, route }) {
   </>;
 }
 
-function Clock({ cycles, now }) {
-  const upcoming = cycles.filter(({ deadline }) => Date.parse(deadline) > now);
+function Clock() {
+  const [now, setNow] = useState(null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const initTimer = setTimeout(tick, 0);
+    const clockTimer = setInterval(tick, 1_000);
+    return () => { clearTimeout(initTimer); clearInterval(clockTimer); };
+  }, []);
+
+  const minute = now == null ? null : Math.floor(now / 60_000);
+  const upcoming = useMemo(() => (minute == null ? [] : cycleClock(new Date(minute * 60_000))), [minute]);
   const next = upcoming[0];
   const seconds = next ? Math.ceil((Date.parse(next.deadline) - now) / 1000) : 0;
   const countdown = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
@@ -152,7 +161,10 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
               {route.feasible ? <span className="ok">Fits modeled OAC</span> : route.segments.filter(({ constrained }) => constrained).map((segment) =>
                 <span className="warning block" key={segment.id}>{segment.name}: {volumes.format(segment.required)} needed / {volumes.format(segment.capacity)} {segment.capacitySource}</span>
               )}
-              {ofos.map((notice) => <span className="warning block" key={notice.key}>OFO · {notice.board}: {notice.title}</span>)}
+              {ofos.map((notice) => <span className="warning block" key={notice.key}>
+                {notice.upcoming ? "Upcoming OFO" : "OFO"} · {notice.board}: {notice.title}
+                {notice.upcoming && ` · Starts ${formatTime(notice.effectiveFrom)}`}
+              </span>)}
             </div>
           </td>
         </tr>;
@@ -186,17 +198,12 @@ export default function Dashboard() {
   const [snapshot, setSnapshot] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
   const [selectedRouteKey, setSelectedRouteKey] = useState("");
-  const [now, setNow] = useState(0);
   const [feedError, setFeedError] = useState("");
   const [solveError, setSolveError] = useState("");
   const [busy, setBusy] = useState(false);
   const graph = snapshot?.graph ?? seedGraph;
   const origins = graph.nodes.filter(({ kind }) => ["receipt", "interconnect"].includes(kind));
   const markets = graph.nodes.filter(({ kind }) => kind === "delivery");
-
-  const minute = Math.floor(now / 60_000);
-  const localCycles = useMemo(() => (minute ? cycleClock(new Date(minute * 60_000)) : []), [minute]);
-  const cycles = snapshot?.cycles?.length ? snapshot.cycles : localCycles;
 
   const activeRoute = useMemo(() => {
     if (!evaluation) return null;
@@ -222,9 +229,7 @@ export default function Dashboard() {
     }
     void poll();
     const pollTimer = setInterval(poll, 30_000);
-    const initTimer = setTimeout(() => setNow(Date.now()), 0);
-    const clockTimer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => { controller.abort(); clearInterval(pollTimer); clearTimeout(initTimer); clearInterval(clockTimer); };
+    return () => { controller.abort(); clearInterval(pollTimer); };
   }, []);
 
   async function submit(event) {
@@ -264,7 +269,7 @@ export default function Dashboard() {
     {feedError && <p role="status" className="warning">{feedError}{snapshot ? " Showing the last successful graph snapshot." : " Showing the illustrative graph."}</p>}
     <div className="top-grid">
       <div className="rail">
-        <Clock cycles={cycles} now={now || Date.parse(snapshot?.asOf ?? 0)} />
+        <Clock />
         <Alerts snapshot={snapshot} />
       </div>
       <section className="panel topology">
