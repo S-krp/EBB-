@@ -1,7 +1,9 @@
 import { boardIds, categories, type BoardId, type Category, type Notice } from "./model";
+import { matchesPid, parsePids } from "../v2/lib/notice-pids.mjs";
 
 export type NoticeFilters = {
   query: string;
+  pidQuery: string;
   pipelines: BoardId[];
   types: Category[];
   criticalOnly: boolean;
@@ -10,6 +12,7 @@ export type NoticeFilters = {
 
 export const emptyNoticeFilters: NoticeFilters = {
   query: "",
+  pidQuery: "",
   pipelines: [],
   types: [],
   criticalOnly: false,
@@ -59,15 +62,17 @@ export function hasInvertedRange({ start, end }: NoticeFilters["range"]) {
 }
 
 export function filterNotices(index: ReturnType<typeof indexNotices>, filters: NoticeFilters) {
-  const { query, pipelines, types, criticalOnly, range } = filters;
+  const { query, pidQuery, pipelines, types, criticalOnly, range } = filters;
   if (hasInvertedRange(range)) return [];
   const terms = query.toLowerCase().replace(nonCriticalPhrase, nonCriticalTerm).trim().split(/\s+/).filter(Boolean);
+  const pids = parsePids(pidQuery);
   const matches: Notice[] = [];
   for (const { notice, date, text, hasNonCriticalTerm } of index) {
     if (pipelines.length && !pipelines.includes(notice.board)) continue;
     if (types.length && !types.includes(notice.category)) continue;
     if (criticalOnly && !notice.critical) continue;
     if ((range.start || range.end) && (!date || (range.start && date < range.start) || (range.end && date > range.end))) continue;
+    if (!matchesPid(notice, pids)) continue;
     if (terms.every((term) => text.includes(term) || (hasNonCriticalTerm && term === nonCriticalTerm))) matches.push(notice);
   }
   return matches;
@@ -84,6 +89,7 @@ export function readNoticeFilters(params: URLSearchParams): NoticeFilters {
   const types = params.getAll("type");
   return {
     query: params.get("q") ?? "",
+    pidQuery: params.get("pid") ?? "",
     pipelines: boardIds.filter((board) => pipelines.includes(board)),
     types: categories.filter((category) => types.includes(category)),
     criticalOnly: params.get("critical") === "1",
@@ -92,8 +98,9 @@ export function readNoticeFilters(params: URLSearchParams): NoticeFilters {
 }
 
 export function writeNoticeFilters(params: URLSearchParams, filters: NoticeFilters) {
-  for (const key of ["q", "pipeline", "type", "critical", "from", "through"]) params.delete(key);
+  for (const key of ["q", "pid", "pipeline", "type", "critical", "from", "through"]) params.delete(key);
   if (filters.query) params.set("q", filters.query);
+  if (filters.pidQuery) params.set("pid", filters.pidQuery);
   for (const pipeline of filters.pipelines) params.append("pipeline", pipeline);
   for (const type of filters.types) params.append("type", type);
   if (filters.criticalOnly) params.set("critical", "1");

@@ -90,10 +90,22 @@ test("takes the union within toggle groups and intersects with other filters", (
   assert.deepEqual(matches(rows, { pipelines: ["EPNG", "NGPL"], types: ["OFO", "Maintenance"], criticalOnly: true }), ["630346", "other"]);
 });
 
+test("PID filters intersect with the existing notice filters", () => {
+  const rows: Notice[] = [
+    { ...notice, id: "first", body: "Restricted meter 40332" },
+    { ...notice, id: "other-board", board: "NGPL", body: "Location TPGS1130R" },
+    { ...notice, id: "40332" },
+    { ...notice, id: "other-pid", body: "Location 403320" },
+  ];
+  assert.deepEqual(matches(rows, { pidQuery: "40332, tpgs1130r" }), ["first", "other-board"]);
+  assert.deepEqual(matches(rows, { pidQuery: "40332, tpgs1130r", pipelines: ["EPNG"] }), ["first"]);
+});
+
 test("round-trips all filter groups and clears only filter params", () => {
   const params = new URLSearchParams("other=keep&pipeline=TW&through=2026-11-21");
   const filters: NoticeFilters = {
     query: "EPNG + OFO", pipelines: ["EPNG", "NGPL"], types: ["OFO", "Force Majeure"], criticalOnly: true,
+    pidQuery: "40332, AB_12-04",
     range: { start: "2026-11-23", end: "2026-11-29" },
   };
   writeNoticeFilters(params, filters);

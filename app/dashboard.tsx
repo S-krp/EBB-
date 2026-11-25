@@ -121,7 +121,7 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const filterSearch = useSyncExternalStore(subscribeToFilterSearch, getFilterSearch, getServerFilterSearch);
   const filters = useMemo(() => readNoticeFilters(new URLSearchParams(filterSearch)), [filterSearch]);
-  const { query, pipelines, types, criticalOnly, range } = filters;
+  const { query, pidQuery, pipelines, types, criticalOnly, range } = filters;
   const invalidRange = hasInvertedRange(range);
   const isNarrow = useSyncExternalStore(subscribeToNarrowView, isNarrowView, () => false);
   const [chosenView, setView] = useState<"table" | "cards" | null>(null);
@@ -183,7 +183,7 @@ export default function Dashboard() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const hasFilters = !!(query || pipelines.length || types.length || criticalOnly || range.start || range.end);
+  const hasFilters = !!(query || pidQuery || pipelines.length || types.length || criticalOnly || range.start || range.end);
   const statusByBoard = new Map(snapshot?.status.map((item) => [item.board, item]));
   const successCount = snapshot?.status.filter((item) => item.lastSuccess && !item.error).length ?? 0;
   const metrics = [
@@ -251,6 +251,7 @@ export default function Dashboard() {
         <div className="space-y-3 border-b border-line px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative min-w-40 flex-1"><span className="sr-only">Search notices</span><Search size={15} className="absolute top-2.5 left-3 text-faint" /><input type="search" placeholder="Search headlines, notice text, or IDs…" value={query} onChange={(event) => updateFilters({ query: event.target.value })} className={field + " w-full pl-9"} /></label>
+            <label className="flex min-w-48 flex-1 items-center gap-2"><span className={heading}>PIDs</span><input type="search" placeholder="Separate PIDs with commas or spaces" value={pidQuery} onChange={(event) => updateFilters({ pidQuery: event.target.value })} className={field + " min-w-0 flex-1"} /></label>
             <span role="group" aria-label="Posted (CT)" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
               <span className="flex items-center gap-2 text-xs text-soft"><CalendarDays size={15} className="shrink-0 text-faint" aria-hidden="true" />Posted (CT)</span>
               <span className="flex min-w-0 items-center gap-2">

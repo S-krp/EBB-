@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cycleClock } from "../lib/cycles.mjs";
 import { corridorGraph } from "../lib/graph.mjs";
+import { loadPidFilter, matchesPid, parsePids, savePidFilter } from "../lib/notice-pids.mjs";
 
 const volumes = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const dateFormat = new Intl.DateTimeFormat("en-US", {
@@ -181,23 +182,37 @@ function Results({ evaluation, busy, activeRouteKey, onSelectRoute }) {
 }
 
 function Alerts({ snapshot }) {
+  const [pidQuery, setPidQuery] = useState("");
+  useEffect(() => {
+    const initial = window.setTimeout(() => setPidQuery(loadPidFilter()), 0);
+    return () => window.clearTimeout(initial);
+  }, []);
+  const pids = parsePids(pidQuery);
+  const notices = snapshot?.notices.filter((notice) => matchesPid(notice, pids)) ?? [];
+  const alerts = snapshot?.alerts.filter((alert) => alert.type !== "ofo" || matchesPid(alert, pids)) ?? [];
+
   return <section className="panel alerts">
     <p className="eyebrow">04 / Monitor</p>
     <h2>EBB alerts</h2>
     <p className="muted">OFO feed: {snapshot?.feeds.ofo ?? "checking"} · OAC feed: {snapshot?.feeds.oac ?? "checking"}</p>
     {!!snapshot?.feeds.missedBoards.length && <p className="warning">Missing or stale notice coverage: {snapshot.feeds.missedBoards.join(", ")}.</p>}
     {snapshot && snapshot.feeds.ofo !== "connected" && <p className="muted">Notice coverage is incomplete; absence of an alert does not establish clearance.</p>}
-    {!!snapshot?.notices.length && <><h3>Current, upcoming or undated OFOs</h3>
-      <ul className="events">{snapshot.notices.map((notice) => <li key={notice.key}>
+    <label>PIDs<input type="search" placeholder="Separate PIDs with commas or spaces" value={pidQuery} onChange={(event) => {
+      setPidQuery(event.target.value);
+      savePidFilter(event.target.value);
+    }} /></label>
+    {!!notices.length && <><h3>Current, upcoming or undated OFOs</h3>
+      <ul className="events">{notices.map((notice) => <li key={notice.key}>
         <strong>{notice.board} · {notice.upcoming ? "Upcoming" : "Current or timing unspecified"}</strong>
         {notice.sourceUrl ? <a href={notice.sourceUrl}>{notice.title}</a> : <span>{notice.title}</span>}
       </li>)}</ul>
     </>}
+    {snapshot && !!pids.size && !notices.length && <p className="muted">No current, upcoming or undated OFOs match these PIDs.</p>}
     <h3>Recent events</h3>
-    {snapshot?.alerts.length ? <ul className="events">{snapshot.alerts.map((alert) => <li key={alert.id}>
+    {alerts.length ? <ul className="events">{alerts.map((alert) => <li key={alert.id}>
       <strong>{alert.type === "ofo" ? "OFO" : "Capacity change"} · {formatTime(alert.observedAt)}</strong>
       {alert.sourceUrl ? <a href={alert.sourceUrl}>{alert.title}</a> : <span>{alert.title}</span>}
-    </li>)}</ul> : <p className="muted">No new OFO or reported capacity change observed in this server session.</p>}
+    </li>)}</ul> : <p className="muted">{snapshot?.alerts.length ? "No recent events match these PIDs." : "No new OFO or reported capacity change observed in this server session."}</p>}
   </section>;
 }
 

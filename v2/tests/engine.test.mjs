@@ -5,6 +5,7 @@ import { cycleClock } from "../lib/cycles.mjs";
 import { readCapacity, readNotices } from "../lib/feeds.mjs";
 import { corridorGraph, memoryGraph, withCapacity } from "../lib/graph.mjs";
 import { graphStore } from "../lib/neo4j.mjs";
+import { matchesPid, parsePids } from "../lib/notice-pids.mjs";
 import { solve } from "../lib/solver.mjs";
 
 const now = Date.parse("2026-07-20T18:00:00Z");
@@ -209,6 +210,28 @@ for (const { gasDay, priorDay, priorOffset, offset, beforeEvening, afterID3, hou
     ]);
   });
 }
+
+test("OFO bodies support PID filtering in the notice and recent feeds without changing webhook payloads", async () => {
+  const { notices } = await readNotices({}, new Set(["PHP"]), now, jsonFeed({
+    status: [{ board: "PHP", lastSuccess: iso(now) }],
+    notices: [{ id: "1", board: "PHP", title: "OFO", category: "OFO", sourceUrl, body: "Locations: 40332, TPGS1120B." }],
+  }));
+  const pids = parsePids("40332");
+  const posts = [];
+  const tracker = alertTracker({
+    webhookUrl: sourceUrl,
+    fetcher: async (_url, options) => {
+      posts.push(JSON.parse(options.body));
+      return new Response(null, { status: 204 });
+    },
+  });
+  await tracker.observe(notices, [], now);
+  const recent = await tracker.observe([], [], now + 1000);
+  assert.equal(matchesPid(notices[0], pids), true);
+  assert.equal(matchesPid(recent[0], pids), true);
+  assert.equal(posts.length, 1);
+  assert.equal(Object.hasOwn(posts[0], "body"), false);
+});
 
 test("webhook retries failures, deduplicates OFOs and emits capacity deltas once", async () => {
   const posts = [];
