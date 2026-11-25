@@ -16,6 +16,7 @@
   "dependencies": {
     "cheerio": "^1.1.2",
     "drizzle-orm": "^0.45.1",
+    "jose": "^6.2.18",
     "lucide-react": "^0.577.0",
     "luxon": "^3.7.2",
     "next": "^16.2.0",

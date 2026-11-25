@@ -6,7 +6,8 @@ on:
       timezone: America/Chicago
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  id-token: write
 
 jobs:
   sweep:
@@ -16,13 +17,14 @@ jobs:
       - name: Trigger production sweep
         shell: bash
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SWEEP_ORIGIN: https://ebb-watch.vercel.app
         run: |
-          if [ -z "$CRON_SECRET" ]; then
-            echo "::error::Set the CRON_SECRET repository secret."
-            exit 1
-          fi
+          token=$(curl --fail --silent --show-error --connect-timeout 15 --max-time 30 \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            --get --data-urlencode "audience=$SWEEP_ORIGIN" "$ACTIONS_ID_TOKEN_REQUEST_URL" |
+            jq -er '.value | select(type == "string" and length > 0)')
+          printf '::add-mask::%s\n' "$token"
           curl --fail-with-body --silent --show-error --connect-timeout 15 --max-time 320 \
-            --header "Authorization: Bearer $CRON_SECRET" \
-            https://ebb-watch.vercel.app/api/cron |
+            --header "Authorization: Bearer $token" \
+            "$SWEEP_ORIGIN/api/cron" |
             jq -e 'if .status then {boards: (.status | length)} elif .skipped then {skipped} else error("Unexpected sweep response") end'
