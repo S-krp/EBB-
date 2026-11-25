@@ -1,6 +1,6 @@
 import { load, type CheerioAPI } from "cheerio";
 import { boards, type BoardId, type RawNotice } from "./model";
-import { noticeDate } from "./normalize";
+import { noticeDate, transwesternEndDate } from "./normalize";
 
 type Result = { notices: RawNotice[]; errors: string[] };
 type Collect = (label: string, run: () => Promise<RawNotice[]>) => Promise<void>;
@@ -98,7 +98,7 @@ async function scrapeTransfer(collect: Collect) {
             board: "TW", pipeline: boards.TW.name, id, title: read("subject"), body: plainText(detail, "[data-notice-body]"), sourceUrl,
             sourceType: section === "planned-service-outage" ? "Planned service outage" : read("type"),
             critical: section === "critical", postedAt: noticeDate(read("postingDate")),
-            effectiveFrom: noticeDate(read("effectiveDate")), effectiveThrough: noticeDate(read("endDate")),
+            effectiveFrom: noticeDate(read("effectiveDate")), effectiveThrough: transwesternEndDate(read("endDate")),
           }];
         });
       });

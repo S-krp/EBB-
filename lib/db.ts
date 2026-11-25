@@ -126,6 +126,24 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
   }
 }
 
+export async function updateCachedNotice(previousHash: string, notice: Notice) {
+  if (previousHash === notice.hash) return;
+  const connection = await database();
+  const result = {
+    hash: notice.hash, category: notice.category, critical: Number(notice.critical), emergency: Number(notice.emergency),
+    tolerances: JSON.stringify(notice.tolerances), effectiveThrough: notice.effectiveThrough,
+  };
+  if (connection.kind === "pg") {
+    await connection.db.update(pg.notices).set(result).where(and(
+      eq(pg.notices.board, notice.board), eq(pg.notices.pipeline, notice.pipeline), eq(pg.notices.id, notice.id), eq(pg.notices.hash, previousHash),
+    ));
+  } else {
+    await connection.db.update(sqlite.notices).set(result).where(and(
+      eq(sqlite.notices.board, notice.board), eq(sqlite.notices.pipeline, notice.pipeline), eq(sqlite.notices.id, notice.id), eq(sqlite.notices.hash, previousHash),
+    )).run();
+  }
+}
+
 export async function claimSweep(owner: string) {
   const connection = await database();
   const row = { name: "notices", owner, expires: new Date(Date.now() + 330_000).toISOString() };

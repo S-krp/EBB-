@@ -23,6 +23,7 @@ test("reads Transwestern outage details when the notice label contains volume gu
     </table></div>`);
     const rows = url.includes("planned-service-outage") ? `<tr><td class="noticeId">
       <a href="/ipost/notice/show/123?asset=TW">123</a></td><td class="subject">Planned work</td>
+      <td class="endDate">Dec 31 2999 12:00PM</td>
     </tr>` : "";
     return new Response(`<table><thead><tr><th class="noticeId">Notice ID</th></tr></thead><tbody>${rows}</tbody></table>`);
   });
@@ -31,6 +32,7 @@ test("reads Transwestern outage details when the notice label contains volume gu
   assert.equal(result.notices.length, 1);
   assert.equal(result.notices[0].body, "Compressor station maintenance.\nCapacity will be reduced.");
   assert.equal(result.notices[0].sourceType, "Planned service outage");
+  assert.equal(result.notices[0].effectiveThrough, null);
 });
 
 test("falls back to the Carlsbad category when the board has no subtype", async (t) => {
