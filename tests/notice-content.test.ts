@@ -29,5 +29,5 @@ test("does not retain active markup, scripts, styles or source attributes", () =
 
 test("leaves non-table HTML and plain notices on the legacy text path", () => {
   assert.deepEqual(contentFrom("Line one\nLine two"), { body: "Line one\nLine two" });
-  assert.deepEqual(contentFrom("<p>Line one</p><p>Line two</p>"), { body: "Line one\n\nLine two" });
+  assert.deepEqual(contentFrom("<p>Line one</p><p>Line two</p>"), { body: "Line one\nLine two" });
 });

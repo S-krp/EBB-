@@ -96,8 +96,8 @@ export async function readFeed() {
       connection.db.select().from(sqlite.notices).orderBy(noticeOrder(sqlite.notices.postedAt)).all(),
       connection.db.select().from(sqlite.status).all(),
     ]);
-  const notices: Notice[] = rows.map((row) => ({
-    ...row, bodyBlocks: row.bodyBlocks ? JSON.parse(row.bodyBlocks) : undefined,
+  const notices: Notice[] = rows.map(({ bodyBlocks, ...row }) => ({
+    ...row, ...(bodyBlocks ? { bodyBlocks: JSON.parse(bodyBlocks) } : {}),
     critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
   }));
   return { notices, status };

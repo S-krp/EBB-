@@ -17,7 +17,7 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
   const body = plainText($, selector);
   const content = $(selector).clone();
   content.find("script, style, head, title, noscript").remove();
-  const tables = content.find("table").filter((_, table) => !$(table).parentsUntil(content).filter("table").length);
+  const tables = content.find("table").filter((_, table) => !$(table).parents("table").length);
   if (!tables.length) return { body };
   const blocks: NoticeBlock[] = [];
   // A delimiter absent from the source keeps the surrounding prose in order.
