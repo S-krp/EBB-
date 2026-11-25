@@ -27,6 +27,7 @@ export async function readNotices(env, boards, now, fetcher = fetch) {
   if (!url) return { notices: [], status: "disabled" };
   const data = await readJson(url, fetcher);
   if (!Array.isArray(data.notices) || !Array.isArray(data.status)) throw new Error("Unrecognized EBB Watch feed");
+  now ??= Date.now();
   const missed = [...boards].filter((board) => !data.status.some((row) =>
     row.board === board && !row.error && Date.parse(row.lastSuccess) <= now &&
     now - Date.parse(row.lastSuccess) <= MAX_OAC_AGE_MS));
@@ -46,6 +47,7 @@ export async function readCapacity(env, edgeIds, now, fetcher = fetch) {
   if (!env.OAC_FEED_URL) return { rows: [], status: "disabled" };
   const data = await readJson(env.OAC_FEED_URL, fetcher);
   if (!Array.isArray(data.segments)) throw new Error("Unrecognized capacity feed");
+  now ??= Date.now();
   const seen = new Set();
   const rows = [];
   for (const row of data.segments) {

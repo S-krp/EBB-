@@ -16,13 +16,13 @@ export function engine() {
 
   async function refresh() {
     const graph = await store.read();
-    const now = Date.now();
     const [ofo, oac] = await Promise.all([
-      readNotices(process.env, new Set(graph.edges.map(({ board }) => board).filter(Boolean)), now)
+      readNotices(process.env, new Set(graph.edges.map(({ board }) => board).filter(Boolean)))
         .catch(() => ({ notices: [], status: "unavailable" })),
-      readCapacity(process.env, new Set(graph.edges.map(({ id }) => id)), now)
+      readCapacity(process.env, new Set(graph.edges.map(({ id }) => id)))
         .catch(() => ({ rows: [], status: "unavailable" })),
     ]);
+    const now = Date.now();
     const alerts = await tracker.observe(ofo.notices, oac.rows, now);
     snapshot = {
       graph: withCapacity(graph, tracker.capacityAt(now)), notices: ofo.notices, alerts,

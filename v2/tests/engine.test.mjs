@@ -103,6 +103,27 @@ test("v1 feed reports partial coverage and keeps only relevant non-expired OFOs"
   assert.deepEqual(data.notices.map(({ key, upcoming }) => [key, upcoming]), [["PHP:1:OFO", true]]);
 });
 
+test("feed timestamps are checked against receipt time, not request time", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now });
+  const next = iso(now + 1000);
+  const capacity = await readCapacity({ OAC_FEED_URL: sourceUrl }, new Set(["php-katy"]), undefined, async () => {
+    t.mock.timers.tick(1000);
+    return Response.json({ segments: [{ edgeId: "php-katy", oac: 42, asOf: next, sourceUrl }] });
+  });
+  assert.equal(capacity.status, "connected");
+  assert.equal(capacity.rows[0].asOf, next);
+
+  const notice = await readNotices({ V1_NOTICE_FEED_URL: sourceUrl }, new Set(["PHP"]), undefined, async () => {
+    t.mock.timers.tick(1000);
+    return Response.json({
+      status: [{ board: "PHP", lastSuccess: iso(now + 2000) }],
+      notices: [{ id: "1", board: "PHP", title: "OFO", category: "OFO", effectiveFrom: next }],
+    });
+  });
+  assert.equal(notice.status, "connected");
+  assert.equal(notice.notices[0].upcoming, false);
+});
+
 test("all five Central deadlines roll over in DST and track the intended gas day", () => {
   const next = cycleClock(new Date(now));
   assert.deepEqual(next.map(({ name }) => name), ["ID2", "Evening", "ID3", "ID1", "Timely"]);
