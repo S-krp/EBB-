@@ -1,6 +1,11 @@
 const DEFAULT_NOTICE_URL = "https://ebb-watch--t6fdes23.preview.devinapps.com/api/feed";
 const MAX_OAC_AGE_MS = 12 * 60 * 60 * 1000;
 
+export function isFreshCapacity(asOf, now) {
+  const age = now - Date.parse(asOf);
+  return age >= 0 && age <= MAX_OAC_AGE_MS;
+}
+
 export function webUrl(value) {
   try {
     const url = new URL(value);
@@ -52,7 +57,7 @@ export async function readCapacity(env, edgeIds, now, fetcher = fetch) {
       throw new Error("Invalid or duplicate capacity observation");
     }
     seen.add(row.edgeId);
-    if (now - asOf <= MAX_OAC_AGE_MS) rows.push({
+    if (isFreshCapacity(row.asOf, now)) rows.push({
       edgeId: row.edgeId, asOf: new Date(asOf).toISOString(), oac: row.oac,
       scheduledVolume: row.scheduledVolume, sourceUrl: webUrl(row.sourceUrl),
     });

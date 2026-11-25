@@ -25,7 +25,7 @@ export function engine() {
     ]);
     const alerts = await tracker.observe(ofo.notices, oac.rows, now);
     snapshot = {
-      graph: withCapacity(graph, oac.rows), notices: ofo.notices, alerts,
+      graph: withCapacity(graph, tracker.capacityAt(now)), notices: ofo.notices, alerts,
       feeds: { ofo: ofo.status, oac: oac.status, missedBoards: ofo.missed ?? [] },
       asOf: new Date(now).toISOString(), backend: store.name,
     };

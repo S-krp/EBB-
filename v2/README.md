@@ -24,7 +24,7 @@ Open [http://localhost:3001](http://localhost:3001). This runs separately from v
 Copy `.env.example` to `.env.local` and uncomment only the settings you need.
 
 - **Notices** — v2 reuses v1’s scraper output through the existing EBB Watch `/api/feed` (default: the EBB Watch preview). Set `V1_NOTICE_FEED_URL` to use another instance, or set it empty to disable. OFOs are board-level cautions, not location-specific blocks. Undated notices may still be relevant; explicitly expired notices are excluded. Missing, errored or older-than-12-hour board statuses are shown as incomplete coverage.
-- **Capacity** — v1's notice scrapers do not provide point-level OAC or scheduled volumes. Set `OAC_FEED_URL` to a trusted, normalized JSON source providing exact segment IDs, Dth/day and observation timestamps. This app does not scrape OAC posts itself. Missing or older-than-12-hour observations leave the affected segment on visibly illustrative capacity. Scheduled volumes are shown but not subtracted from OAC a second time. Example:
+- **Capacity** — v1's notice scrapers do not provide point-level OAC or scheduled volumes. Set `OAC_FEED_URL` to a trusted, normalized JSON source providing exact segment IDs, Dth/day and observation timestamps. This app does not scrape OAC posts itself. Each segment keeps its newest observation for up to 12 hours, even if a feed refresh replays or omits it; otherwise the segment uses visibly illustrative capacity. Scheduled volumes are shown but not subtracted from OAC a second time. Example:
 
   ```json
   {

@@ -72,6 +72,21 @@ test("only fresh normalized OAC replaces illustrative capacity and can block a r
   assert.ok(result.routes.some((route) => route.segments.some(({ id, constrained }) => id === gcx.id && constrained)));
 });
 
+test("routing retains the newest reported capacity through replays and expires old observations", async () => {
+  const tracker = alertTracker({ log: { info() {} } });
+  const earlier = { edgeId: "gcx-agua", oac: 90000, asOf: iso(now - 2000), sourceUrl };
+  const latest = { ...earlier, oac: 0, asOf: iso(now) };
+  await tracker.observe([], [earlier], now - 2000);
+  await tracker.observe([], [latest], now);
+  const replayAt = now + 2000;
+  const alerts = await tracker.observe([], [earlier], replayAt);
+  assert.deepEqual(alerts.map(({ delta }) => delta), [-90000]);
+  assert.deepEqual(tracker.capacityAt(replayAt), [latest]);
+  const graph = withCapacity(seedGraph, tracker.capacityAt(replayAt));
+  assert.equal(solve(graph, input).bestNetback.destination, "katy");
+  assert.deepEqual(tracker.capacityAt(now + 12 * 3600000 + 1), []);
+});
+
 test("v1 feed reports partial coverage and keeps only relevant non-expired OFOs", async () => {
   const notice = { id: "1", board: "PHP", title: "OFO", category: "OFO", sourceUrl };
   const data = await readNotices({}, new Set(["PHP", "GCX"]), now, jsonFeed({

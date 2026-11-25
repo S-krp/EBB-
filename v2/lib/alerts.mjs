@@ -1,4 +1,4 @@
-import { webUrl } from "./feeds.mjs";
+import { isFreshCapacity, webUrl } from "./feeds.mjs";
 
 export function alertTracker({ webhookUrl, fetcher = fetch, log = console } = {}) {
   const seen = new Set();
@@ -14,6 +14,9 @@ export function alertTracker({ webhookUrl, fetcher = fetch, log = console } = {}
   }
 
   return {
+    capacityAt(now) {
+      return [...previous.values()].filter(({ asOf }) => isFreshCapacity(asOf, now));
+    },
     async observe(notices, capacity, now) {
       const observedAt = new Date(now).toISOString();
       for (const notice of notices) add({ ...notice, id: `ofo:${notice.key}`, type: "ofo", observedAt });
