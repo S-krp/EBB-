@@ -1,6 +1,7 @@
 import { load, type CheerioAPI } from "cheerio";
+import { DateTime } from "luxon";
 import { boards, type BoardId, type RawNotice } from "./model";
-import { noticeDate, transwesternEndDate } from "./normalize";
+import { centralZone, noticeDate, transwesternEndDate } from "./normalize";
 
 type Result = { notices: RawNotice[]; errors: string[] };
 type Collect = (label: string, run: () => Promise<RawNotice[]>) => Promise<void>;
@@ -33,7 +34,7 @@ async function request(url: string, options?: RequestInit) {
 
 function plainText($: CheerioAPI, selector: string) {
   const content = $(selector).clone();
-  content.find("script, style, head, noscript").remove();
+  content.find("script, style, head, title, noscript").remove();
   content.find("br").replaceWith("\n");
   content.find("p, div, li, pre, tr").after("\n");
   content.find("td, th").after("  ");
@@ -94,8 +95,14 @@ async function scrapeTransfer(collect: Collect) {
           }).first();
           if (!bodyLabel.length) throw new Error("Transwestern notice body not found");
           bodyLabel.next().attr("data-notice-body", "");
+          const body = plainText(detail, "[data-notice-body]") || bodyLabel.parent().nextAll("tr").toArray().flatMap((row) => {
+            const cells = detail(row).children("td");
+            const label = cells.eq(0).text().trim();
+            const value = cells.eq(1).text().trim();
+            return value && (label === "Reason:" || label === "Location:") ? [`${label} ${value}`] : [];
+          }).join("\n");
           return [{
-            board: "TW", pipeline: boards.TW.name, id, title: read("subject"), body: plainText(detail, "[data-notice-body]"), sourceUrl,
+            board: "TW", pipeline: boards.TW.name, id, title: read("subject"), body, sourceUrl,
             sourceType: section === "planned-service-outage" ? "Planned service outage" : read("type"),
             critical: section === "critical", postedAt: noticeDate(read("postingDate")),
             effectiveFrom: noticeDate(read("effectiveDate")), effectiveThrough: transwesternEndDate(read("endDate")),
@@ -118,8 +125,22 @@ type LinkNotice = {
   NoticeEffFromTime: string;
   NoticeEffThruDate: string;
   NoticeEffThruTime: string;
+  PostEffFromDate?: string;
+  PostEffFromTime?: string;
+  PostEffThruDate?: string;
+  PostEffThruTime?: string;
   NoticeText?: { rawText?: string } | string;
 };
+
+function linkEffectiveThrough(record: LinkNotice) {
+  const end = noticeDate(`${record.NoticeEffThruDate} ${record.NoticeEffThruTime}`);
+  const postEnd = noticeDate(`${record.PostEffThruDate} ${record.PostEffThruTime}`);
+  if (!end || end !== postEnd) return end;
+  const postStart = noticeDate(`${record.PostEffFromDate} ${record.PostEffFromTime}`);
+  if (!postStart) return end;
+  const defaultPostEnd = DateTime.fromISO(postStart, { zone: centralZone }).plus({ days: 90 }).toUTC().toISO();
+  return end === defaultPostEnd ? null : end;
+}
 
 async function scrapeLink(collect: Collect) {
   await collect("critical listing", async () => {
@@ -140,7 +161,7 @@ async function scrapeLink(collect: Collect) {
             board: "LINK", id: noticeId, pipeline: pipeline.pipelineName, title: record.NoticeTitle,
             sourceType: record.NoticeTypeDescr, critical: true, postedAt: noticeDate(`${record.PostedDate} ${record.PostedTime}`),
             effectiveFrom: noticeDate(`${record.NoticeEffFromDate} ${record.NoticeEffFromTime}`),
-            effectiveThrough: noticeDate(`${record.NoticeEffThruDate} ${record.NoticeEffThruTime}`),
+            effectiveThrough: linkEffectiveThrough(record),
             sourceUrl: `${enbridge}/noticedetails/${routeCode}/CRI/${encodeURIComponent(noticeId)}`,
             body: textFrom((typeof record.NoticeText === "string" ? record.NoticeText : record.NoticeText?.rawText) ?? ""),
           }];
