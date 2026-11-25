@@ -37,7 +37,8 @@ export function noticeContent($: CheerioAPI, selector: string): { body: string; 
         };
       }),
     ).filter((row) => row.length);
-    tableBlocks.push({ type: "table", rows });
+    const caption = $(table).children("caption").text().trim();
+    tableBlocks.push({ type: "table", ...(caption ? { caption } : {}), rows });
     $(table).replaceWith(`\n${delimiter}${index}${delimiter}\n`);
   });
   const fragment = load("<div data-content></div>");

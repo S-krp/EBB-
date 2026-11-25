@@ -31,3 +31,8 @@ test("leaves non-table HTML and plain notices on the legacy text path", () => {
   assert.deepEqual(contentFrom("Line one\nLine two"), { body: "Line one\nLine two" });
   assert.deepEqual(contentFrom("<p>Line one</p><p>Line two</p>"), { body: "Line one\nLine two" });
 });
+
+test("keeps table captions", () => {
+  const table = contentFrom("<table><caption>Capacity limits</caption><tr><td>10</td></tr></table>").bodyBlocks?.[0];
+  assert.equal(table?.type === "table" && table.caption, "Capacity limits");
+});

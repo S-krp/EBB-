@@ -53,6 +53,7 @@ function NoticeBody({ notice }: { notice: Notice }) {
     ? <p key={index} className="whitespace-pre-wrap wrap-anywhere">{block.text}</p>
     : <div key={index} role="region" aria-label={`Notice table ${index + 1}`} tabIndex={0} className="overflow-x-auto rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-signal">
       <table className="w-full border-collapse text-left text-sm leading-6" aria-label={`${notice.title} — table ${index + 1}`}>
+        {block.caption && <caption className="bg-inset px-4 py-3 text-left font-bold">{block.caption}</caption>}
         <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b border-line last:border-b-0 even:bg-inset">{row.map((cell, cellIndex) => {
           const Cell = cell.header ? "th" : "td";
           return <Cell key={cellIndex} colSpan={cell.colSpan} rowSpan={cell.rowSpan} className={`min-w-24 border-r border-line px-4 py-3 align-top whitespace-pre-line last:border-r-0 ${cell.header ? "bg-inset font-bold text-slate-100" : "text-slate-200"}`}>{cell.text}</Cell>;
