@@ -34,11 +34,11 @@ function windowLabel(notice: Notice) {
 
 function Badge({ notice }: { notice: Notice }) {
   return <div className="flex flex-wrap items-center gap-1.5">
-    <span className={`rounded border px-2 py-1 text-[11px] leading-none font-bold whitespace-nowrap ${chips[notice.category]}`}>{notice.category}</span>
-    {notice.emergency && <span className={`rounded border px-2 py-1 text-[11px] leading-none font-bold ${chips.Critical}`}>Emergency</span>}
-    {notice.critical && !notice.emergency && (notice.category === "Maintenance" || notice.category === "Non-Critical") && <span className={`rounded border px-2 py-1 text-[11px] leading-none font-bold ${chips.Critical}`} title="Posted as critical by the pipeline">Critical</span>}
-    {isLifted(notice) && <span className="rounded border border-emerald-400/35 bg-emerald-400/10 px-2 py-1 text-[11px] leading-none font-bold text-emerald-200">Lifted</span>}
-    {!!notice.tolerances.length && <span className="font-mono text-xs font-bold whitespace-nowrap text-amber-200" title="OFO tolerances">Tol {notice.tolerances.join(", ")}</span>}
+    <span className={`rounded border px-2 py-1 text-xs leading-tight font-bold ${chips[notice.category]}`}>{notice.category}</span>
+    {notice.emergency && <span className={`rounded border px-2 py-1 text-xs leading-tight font-bold ${chips.Critical}`}>Emergency</span>}
+    {notice.critical && !notice.emergency && (notice.category === "Maintenance" || notice.category === "Non-Critical") && <span className={`rounded border px-2 py-1 text-xs leading-tight font-bold ${chips.Critical}`} title="Posted as critical by the pipeline">Critical</span>}
+    {isLifted(notice) && <span className="rounded border border-emerald-400/35 bg-emerald-400/10 px-2 py-1 text-xs leading-tight font-bold text-emerald-200">Lifted</span>}
+    {!!notice.tolerances.length && <span className="font-mono text-xs font-bold wrap-anywhere text-amber-200" title="OFO tolerances">Tol {notice.tolerances.join(", ")}</span>}
   </div>;
 }
 
@@ -50,32 +50,32 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
   const element = useRef<HTMLDialogElement>(null);
   useEffect(() => { element.current?.showModal(); }, []);
   useEffect(() => { element.current?.scrollTo({ top: 0 }); }, [notice]);
-  const pager = "rounded-md border border-line p-2 text-soft hover:text-white disabled:opacity-40";
+  const pager = "grid size-11 shrink-0 place-items-center rounded-md border border-line text-soft hover:text-white disabled:opacity-40";
   return <dialog ref={element} onClose={close} onClick={(event) => { if (event.target === event.currentTarget) close(); }} aria-labelledby="notice-title"
     onKeyDown={(event) => {
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); step(event.key === "ArrowLeft" ? -1 : 1); }
     }}
     className="m-0 ml-auto h-dvh max-h-none w-full max-w-[640px] border-l border-line bg-panel text-slate-100 backdrop:bg-black/65">
-    <div className="min-h-full px-6 py-7 sm:px-9">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="font-mono text-xs tracking-widest text-signal">NOTICE / #{notice.id}</div>
-        <div className="flex items-center gap-2">
-          {position >= 0 && <span className="mr-1 font-mono text-[11px] text-faint">{position + 1} / {total}</span>}
+    <div className="min-h-full px-5 py-5 sm:px-9 sm:py-7">
+      <div className="mb-4 flex items-center justify-between gap-2 sm:mb-6 sm:gap-4">
+        <div className="font-mono text-xs tracking-widest wrap-anywhere text-signal">NOTICE / #{notice.id}</div>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {position >= 0 && <span className="mr-1 font-mono text-xs text-faint">{position + 1} / {total}</span>}
           <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous notice" title="Previous notice (←)" className={pager}><ChevronLeft size={17} /></button>
           <button type="button" onClick={() => step(1)} disabled={position < 0 || position >= total - 1} aria-label="Next notice" title="Next notice (→)" className={pager}><ChevronRight size={17} /></button>
           <button type="button" autoFocus onClick={close} aria-label="Close notice" className={pager}><X size={17} /></button>
         </div>
       </div>
       <Badge notice={notice} />
-      <h2 id="notice-title" className="mt-4 text-2xl leading-tight font-bold">{notice.title}</h2>
-      <p className="mt-2 text-sm text-soft">{notice.pipeline}{notice.sourceType ? ` · ${notice.sourceType}` : ""}</p>
+      <h2 id="notice-title" className="mt-4 text-2xl leading-tight font-bold wrap-anywhere">{notice.title}</h2>
+      <p className="mt-2 text-sm wrap-anywhere text-soft">{notice.pipeline}{notice.sourceType ? ` · ${notice.sourceType}` : ""}</p>
       <dl className="my-6 grid gap-3 rounded-lg border border-line bg-inset p-4 text-sm sm:grid-cols-2">
         {[["Posted", notice.postedAt], ["Effective start", notice.effectiveFrom], ["Effective end", notice.effectiveThrough]].map(([label, value]) => <div key={label}>
           <dt className="text-xs text-soft">{label} (CT)</dt><dd className="mt-1">{value ? stamp(value) : label === "Effective end" && notice.effectiveFrom ? "Until further notice" : "—"}</dd>
         </div>)}
       </dl>
       <h3 className="mb-3 text-sm font-bold">Notice text</h3>
-      <p className="text-sm leading-7 whitespace-pre-wrap [overflow-wrap:anywhere] text-slate-200">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>
+      <p className="text-base leading-relaxed wrap-anywhere whitespace-pre-wrap text-slate-200">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>
       <a href={notice.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-8 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-bold text-signal hover:bg-inset">Open original posting <ExternalLink size={14} /></a>
     </div>
   </dialog>;
@@ -98,10 +98,21 @@ function subscribeToFilterSearch(listener: () => void) {
   };
 }
 
-const heading = "font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-faint";
+const heading = "font-mono text-xs font-bold tracking-wide uppercase text-faint";
 const field = "rounded-md border border-line bg-inset px-2.5 py-2 text-xs text-soft";
 const noticeKey = (notice: Notice) => JSON.stringify([notice.board, notice.pipeline, notice.id]);
 const pageSize = 25;
+const narrowView = "(width < 48rem)";
+
+function subscribeToNarrowView(callback: () => void) {
+  const media = window.matchMedia(narrowView);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+
+function isNarrowView() {
+  return window.matchMedia(narrowView).matches;
+}
 
 export default function Dashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -112,7 +123,9 @@ export default function Dashboard() {
   const filters = useMemo(() => readNoticeFilters(new URLSearchParams(filterSearch)), [filterSearch]);
   const { query, pipelines, types, criticalOnly, range } = filters;
   const invalidRange = hasInvertedRange(range);
-  const [view, setView] = useState<"table" | "cards">("table");
+  const isNarrow = useSyncExternalStore(subscribeToNarrowView, isNarrowView, () => false);
+  const [chosenView, setView] = useState<"table" | "cards" | null>(null);
+  const view = chosenView ?? (isNarrow ? "cards" : "table");
   const [selected, setSelected] = useState<Notice | null>(null);
   const [page, setPage] = useState(1);
 
@@ -182,50 +195,51 @@ export default function Dashboard() {
 
   return <>
     <header className="border-b border-line bg-inset">
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-4 md:px-8">
+      <div className="mx-auto flex max-w-[2240px] items-center justify-between gap-3 px-4 py-3 md:px-8 md:py-4">
         <div className="flex items-center gap-3">
           <div className="rounded-lg border border-signal/25 bg-signal/10 p-2 text-signal"><Activity size={23} strokeWidth={2.2} /></div>
-          <div><div className="text-lg leading-tight font-bold">EBB Watch</div><div className="mt-0.5 font-mono text-[9px] tracking-[0.14em] uppercase text-faint">Natural gas intelligence</div></div>
+          <div><div className="text-lg leading-tight font-bold">EBB Watch</div><div className="mt-0.5 hidden font-mono text-xs tracking-wide uppercase text-faint sm:block">Natural gas intelligence</div></div>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wide text-soft"><span className="size-2 rounded-full bg-signal shadow-[0_0_8px_#69e7cb80]" /> <span>Public EBBs</span></div>
+        <div className="flex items-center gap-2 font-mono text-xs tracking-wide text-soft uppercase"><span className="size-2 shrink-0 rounded-full bg-signal shadow-[0_0_8px_#69e7cb80]" /> <span>Public EBBs</span></div>
       </div>
     </header>
-    <main className="mx-auto max-w-[1600px] space-y-6 px-4 pt-7 pb-10 md:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><div className={heading + " mb-2 text-signal"}>Operations / Notice Monitor</div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Pipeline Notice Dashboard</h1><p className="mt-2 text-sm text-soft">Critical notices, flow orders, and maintenance from public pipeline boards.</p></div>
+    <main className="mx-auto max-w-[2240px] space-y-4 px-4 pt-4 pb-10 md:space-y-6 md:px-8 md:pt-7">
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-3">
+        <div className="w-full sm:w-auto"><div className={heading + " mb-1.5 text-signal"}>Operations / Notice Monitor</div><h1 className="text-2xl font-bold tracking-tight sm:text-4xl">Pipeline Notice Dashboard</h1><p className="mt-2 text-sm text-soft">Critical notices, flow orders, and maintenance from public pipeline boards.</p></div>
         <button type="button" onClick={runSweep} disabled={busy} className="flex min-w-32 items-center justify-center gap-2 rounded-md bg-signal px-4 py-2.5 text-sm font-bold text-canvas hover:bg-teal-200 disabled:opacity-65">
           <RefreshCw size={15} className={busy ? "animate-spin" : ""} /> {busy ? "Sweeping…" : "Run sweep"}
         </button>
+        <a href="#notice-feed" className="self-center rounded text-sm font-bold text-signal hover:underline md:hidden">Jump to notices <ArrowDown className="inline" size={14} /></a>
       </div>
       {(feedError || manualMessage || busy) && <p role="status" className="rounded-md border border-line bg-panel px-4 py-2 text-sm text-soft">{feedError || manualMessage || "Sweeping public boards. This can take a few minutes."}</p>}
 
-      <section aria-label="Notice and board statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {metrics.map(({ label, count, caption, icon: Icon, color }) => <div key={label} className="rounded-lg border border-line bg-panel p-4">
-          <div className="flex items-center justify-between gap-2"><span className={heading}>{label}</span><Icon size={16} className={color} /></div>
-          <div className={`mt-2 font-mono text-2xl font-bold ${color}`}>{snapshot ? count : "—"}</div>
-          <div className="mt-1 text-xs text-soft">{caption}</div>
+      <section aria-label="Notice and board statistics" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        {metrics.map(({ label, count, caption, icon: Icon, color }) => <div key={label} className="rounded-lg border border-line bg-panel p-2.5 sm:p-4">
+          <div className="flex items-center justify-between gap-2"><span className={heading}>{label}</span><Icon size={16} className={`shrink-0 ${color}`} /></div>
+          <div className={`mt-1 font-mono text-xl font-bold sm:mt-2 sm:text-2xl ${color}`}>{snapshot ? count : "—"}</div>
+          <div className="mt-0.5 text-xs text-soft sm:mt-1">{caption}</div>
         </div>)}
       </section>
 
       <section aria-labelledby="board-status" className="rounded-lg border border-line bg-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
           <h2 id="board-status" className="flex items-center gap-2 text-sm font-bold"><Radio size={16} className="text-signal" /> Board status</h2>
-          <span className="flex items-center gap-1.5 font-mono text-[11px] text-soft"><Clock3 size={14} /> Next sweep: {stamp(snapshot?.nextSweep)}{snapshot && " CT"}</span>
+          <span className="flex items-center gap-1.5 font-mono text-xs text-soft"><Clock3 size={14} /> Next sweep: {stamp(snapshot?.nextSweep)}{snapshot && " CT"}</span>
         </div>
         <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-b-lg bg-line sm:grid-cols-4 xl:grid-cols-7">
           {boardIds.map((id) => {
             const status = statusByBoard.get(id);
-            return <li key={id} className="bg-panel px-4 py-3">
+            return <li key={id} className="min-w-0 bg-panel px-3 py-2 sm:px-4 sm:py-3">
               <div className="flex items-center gap-2 text-xs font-bold"><span aria-label={status?.error ? "Error" : status?.lastSuccess ? "Healthy" : "Not swept"} className={`size-1.5 shrink-0 rounded-full ${status?.error ? "bg-rose-400" : status?.lastSuccess ? "bg-signal" : "bg-slate-500"}`} />{boards[id].label}</div>
-              <p className="mt-1 text-[11px] text-soft" title={status?.lastSuccess ? `Last successful sweep: ${stamp(status.lastSuccess)} CT` : undefined}>{status?.lastSuccess ? `${stamp(status.lastSuccess)} CT` : "No successful sweep yet"}</p>
-              {status?.error && <details className="mt-1 text-[11px] text-rose-300"><summary className="cursor-pointer">Latest sweep error</summary><p className="mt-1 break-words">{status.error}</p></details>}
+              <p className="mt-1 text-xs text-soft" title={status?.lastSuccess ? `Last successful sweep: ${stamp(status.lastSuccess)} CT` : undefined}>{status?.lastSuccess ? `${stamp(status.lastSuccess)} CT` : "No successful sweep yet"}</p>
+              {status?.error && <details className="mt-1 text-xs text-rose-300"><summary className="cursor-pointer">Latest sweep error</summary><p className="mt-1 wrap-anywhere">{status.error}</p></details>}
             </li>;
           })}
         </ul>
       </section>
 
       <section aria-labelledby="notice-feed" className="overflow-hidden rounded-lg border border-line bg-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-2.5"><h2 id="notice-feed" className="text-base font-bold">Live Notice Feed</h2><span className="rounded-full bg-signal/10 px-2 py-0.5 font-mono text-xs text-signal">{filtered.length}</span></div>
           <div aria-label="Feed layout" className="flex rounded-md border border-line bg-inset p-0.5">
             {(["table", "cards"] as const).map((option) => {
@@ -237,10 +251,13 @@ export default function Dashboard() {
         <div className="space-y-3 border-b border-line px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative min-w-40 flex-1"><span className="sr-only">Search notices</span><Search size={15} className="absolute top-2.5 left-3 text-faint" /><input type="search" placeholder="Search headlines, notice text, or IDs…" value={query} onChange={(event) => updateFilters({ query: event.target.value })} className={field + " w-full pl-9"} /></label>
-            <span role="group" aria-label="Posted (CT)" className="flex flex-wrap items-center gap-2"><CalendarDays size={15} className="text-faint" aria-hidden="true" /><span className="text-xs text-soft">Posted (CT)</span>
-              <input type="date" aria-label="Posted from (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.start} onChange={(event) => updateFilters({ range: { ...range, start: event.target.value } })} className={field} />
-              <span className="text-xs text-faint">to</span>
-              <input type="date" aria-label="Posted through (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.end} onChange={(event) => updateFilters({ range: { ...range, end: event.target.value } })} className={field} />
+            <span role="group" aria-label="Posted (CT)" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+              <span className="flex items-center gap-2 text-xs text-soft"><CalendarDays size={15} className="shrink-0 text-faint" aria-hidden="true" />Posted (CT)</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <input type="date" aria-label="Posted from (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.start} onChange={(event) => updateFilters({ range: { ...range, start: event.target.value } })} className={field + " min-w-0"} />
+                <span className="text-xs text-faint">to</span>
+                <input type="date" aria-label="Posted through (CT)" aria-invalid={invalidRange} aria-describedby={invalidRange ? "posted-range-error" : undefined} value={range.end} onChange={(event) => updateFilters({ range: { ...range, end: event.target.value } })} className={field + " min-w-0"} />
+              </span>
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2"><span className={heading + " w-16"}>Pipeline</span>{boardIds.map((id) => <button key={id} type="button" aria-pressed={pipelines.includes(id)} onClick={() => updateFilters({ pipelines: toggle(pipelines, id) })} className={`rounded-md border px-2.5 py-1 text-xs ${pipelines.includes(id) ? "border-signal/50 bg-signal/10 font-bold text-signal" : "border-line text-soft hover:text-white"}`}>{boards[id].label}</button>)}</div>
@@ -252,22 +269,35 @@ export default function Dashboard() {
         </div>
         {invalidRange ? <p id="posted-range-error" role="alert" className="px-4 py-14 text-center text-sm text-amber-200">The Posted from date must be on or before the Posted through date.</p>
         : !visible.length ? <div className="px-4 py-14 text-center text-sm text-soft">{snapshot ? hasFilters ? "No notices match these filters." : "No notices collected yet. Run a sweep to populate the feed." : feedError || "Loading the notice feed…"}</div>
-        : view === "table" ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm">
+        : view === "table" ? <table className="w-full table-fixed text-left text-sm">
           <thead className={"border-b border-line bg-inset " + heading}><tr>
-            <th scope="col" className="px-4 py-3">Pipeline / ID</th><th scope="col" className="px-4 py-3">Notice</th><th scope="col" className="px-4 py-3">Type</th><th scope="col" className="px-4 py-3">Effective dates</th><th scope="col" className="px-4 py-3"><span className="flex items-center gap-1">Posted (CT) <ArrowDown size={11} /></span></th><th scope="col" className="px-4 py-3">Original</th>
+            <th scope="col" className="hidden w-[15%] px-4 py-3 lg:table-cell">Pipeline / ID</th>
+            <th scope="col" className="px-3 py-3 lg:px-4">Notice</th>
+            <th scope="col" className="w-[33%] px-3 py-3 lg:w-[15%] lg:px-4">Type</th>
+            <th scope="col" className="hidden w-[14%] px-4 py-3 lg:table-cell">Effective dates</th>
+            <th scope="col" className="hidden w-[15%] px-4 py-3 lg:table-cell"><span className="flex items-center gap-1">Posted (CT) <ArrowDown size={11} /></span></th>
+            <th scope="col" className="hidden w-[7rem] px-4 py-3 lg:table-cell">Original</th>
           </tr></thead>
-          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={() => setSelected(notice)} className="cursor-pointer hover:bg-inset">
-            <td className={`max-w-44 border-l-2 px-4 py-3 ${notice.critical && !isLifted(notice) ? "border-rose-400/70" : "border-transparent"}`}><div className="text-xs font-bold">{notice.pipeline}</div><div className="mt-1 font-mono text-[11px] text-faint">#{notice.id}</div></td>
-            <td className="max-w-[32rem] px-4 py-3"><button type="button" className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button></td>
-            <td className="px-4 py-3"><Badge notice={notice} /></td>
-            <td className="px-4 py-3 text-xs leading-5 text-soft">{windowLabel(notice)}</td>
-            <td className="px-4 py-3 text-xs leading-5 whitespace-nowrap text-soft">{stamp(notice.postedAt)}</td>
-            <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}><Source url={notice.sourceUrl} title={notice.title} /></td>
+          <tbody className="divide-y divide-line">{visible.map((notice) => <tr key={noticeKey(notice)} onClick={() => setSelected(notice)} className={`cursor-pointer border-l-2 align-top hover:bg-inset lg:align-middle ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : "border-l-transparent"}`}>
+            <td className="hidden px-4 py-3 wrap-anywhere lg:table-cell"><div className="text-xs font-bold">{notice.pipeline}</div><div className="mt-1 font-mono text-xs text-faint">#{notice.id}</div></td>
+            <td className="px-3 py-3 wrap-anywhere lg:px-4">
+              <div className="mb-1 text-xs text-soft lg:hidden">{notice.pipeline} <span className="font-mono text-faint">#{notice.id}</span></div>
+              <button type="button" className="text-left text-sm font-semibold text-slate-100 hover:text-signal" onClick={(event) => { event.stopPropagation(); setSelected(notice); }}>{notice.title}</button>
+              <div className="mt-2 space-y-1 text-xs text-soft lg:hidden">
+                <div>Effective: {windowLabel(notice)}</div>
+                <div>Posted: {stamp(notice.postedAt)} CT</div>
+                <span className="inline-block" onClick={(event) => event.stopPropagation()}><Source url={notice.sourceUrl} title={notice.title} /></span>
+              </div>
+            </td>
+            <td className="px-3 py-3 lg:px-4"><Badge notice={notice} /></td>
+            <td className="hidden px-4 py-3 text-xs leading-5 text-soft lg:table-cell">{windowLabel(notice)}</td>
+            <td className="hidden px-4 py-3 text-xs leading-5 text-soft lg:table-cell">{stamp(notice.postedAt)}</td>
+            <td className="hidden px-4 py-3 lg:table-cell" onClick={(event) => event.stopPropagation()}><Source url={notice.sourceUrl} title={notice.title} /></td>
           </tr>)}</tbody>
-        </table></div>
-        : <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">{visible.map((notice) => <article key={noticeKey(notice)} className={`flex flex-col gap-2 rounded-lg border border-line border-l-2 bg-inset p-4 ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : ""}`}>
+        </table>
+        : <div className="grid gap-3 p-3 md:grid-cols-2 md:p-4 xl:grid-cols-3">{visible.map((notice) => <article key={noticeKey(notice)} className={`flex min-w-0 flex-col gap-2 rounded-lg border border-line border-l-2 bg-inset p-3 wrap-anywhere sm:p-4 ${notice.critical && !isLifted(notice) ? "border-l-rose-400/70" : ""}`}>
           <div className="flex justify-between gap-2 text-xs text-soft"><span>{notice.pipeline}</span><span className="font-mono">#{notice.id}</span></div>
-          <button type="button" className="text-left text-sm font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
+          <button type="button" className="text-left text-base font-bold hover:text-signal" onClick={() => setSelected(notice)}>{notice.title}</button>
           <Badge notice={notice} />
           <div className="mt-auto flex flex-wrap justify-between gap-1 border-t border-line pt-2 text-xs text-soft"><span>Effective: {windowLabel(notice)}</span><span>Posted: {stamp(notice.postedAt)} CT</span><Source url={notice.sourceUrl} title={notice.title} /></div>
         </article>)}</div>}
