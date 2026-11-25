@@ -155,8 +155,8 @@ function staleNotices(table: typeof pg.notices | typeof sqlite.notices, notices:
   return and(
     eq(table.board, status.board),
     notInArray(sql`${table.pipeline} || '|' || ${table.id}`, notices.map((notice) => `${notice.pipeline}|${notice.id}`)),
-    sql`coalesce(${table.postedAt}, '') < ${cutoff}`,
-    sql`coalesce(${table.effectiveThrough}, ${table.effectiveFrom}, '') < ${cutoff}`,
+    sql`${table.postedAt} < ${cutoff}`,
+    sql`${table.effectiveThrough} < ${cutoff}`,
   );
 }
 

@@ -14,7 +14,7 @@ npm run dev         # http://localhost:3000
 
 No variables are required for local development. SQLite defaults to `.data/notices.sqlite`; the app creates its tables automatically. To run the production build locally: `npm run build && npm start`.
 
-Boards are independent: an upstream failure is shown in Board Status without clearing notices or the last successful sweep. A healthy board can report zero notices. The feed refreshes every minute, and **Run sweep** starts the same live job available from `npm run sweep`. `/api/feed` sends an `ETag`, so a refresh with no new sweep gets an empty `304 Not Modified` and the database is only read in full when notices change. Pass `board` and `category` (repeatable, e.g. `?category=OFO`) to fetch a subset. A successful sweep deletes a board's notices that are no longer posted on it once their posted and effective dates are more than 90 days old.
+Boards are independent: an upstream failure is shown in Board Status without clearing notices or the last successful sweep. A healthy board can report zero notices. The feed refreshes every minute, and **Run sweep** starts the same live job available from `npm run sweep`. `/api/feed` sends an `ETag`, so a refresh with no new sweep gets an empty `304 Not Modified` and the database is only read in full when notices change. Pass `board` and `category` (repeatable, e.g. `?category=OFO`) to fetch a subset. A successful sweep deletes a board's notices that are no longer posted on it once both their posted date and their end date are more than 90 days old; undated and open-ended notices are kept.
 
 ## Sources and coverage
 

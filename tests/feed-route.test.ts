@@ -47,12 +47,15 @@ test("the feed answers unchanged polls with 304 and filters by board and categor
   assert.equal(((await changed.json()) as Snapshot).notices.find(({ id }) => id === "1")?.title, "Operational Flow Order lifted");
 });
 
-test("successful sweeps prune notices that left the board more than 90 days ago", async () => {
+test("successful sweeps prune notices that left the board and ended more than 90 days ago", async () => {
   const old = "2026-07-01T00:00:00.000Z";
-  await saveBoard([notice("3", "Old maintenance", old, old), notice("4", "Old open-ended notice", old), notice("5", "Old but ongoing", old, "2026-12-31T00:00:00.000Z")], status);
+  await saveBoard([
+    notice("3", "Old maintenance", old, old), notice("4", "Old open-ended notice", old),
+    notice("5", "Old but ongoing", old, "2026-12-31T00:00:00.000Z"), { ...notice("7", "Undated notice"), postedAt: null, effectiveFrom: null },
+  ], status);
   await saveBoard([notice("6", "Current notice")], { ...status, error: "Partial board failure", lastSuccess: null });
-  assert.deepEqual((await readFeed()).notices.map(({ id }) => id).sort(), ["1", "2", "3", "4", "5", "6"]);
+  assert.deepEqual((await readFeed()).notices.map(({ id }) => id).sort(), ["1", "2", "3", "4", "5", "6", "7"]);
 
   await saveBoard([notice("6", "Current notice")], status);
-  assert.deepEqual((await readFeed()).notices.map(({ id }) => id).sort(), ["1", "2", "5", "6"]);
+  assert.deepEqual((await readFeed()).notices.map(({ id }) => id).sort(), ["1", "2", "4", "5", "6", "7"]);
 });
