@@ -30,6 +30,22 @@ test("matches headline, body and classification terms together without matching 
   assert.deepEqual(matches([notice], { query: "lifted missing" }), []);
 });
 
+test("matches Non-Critical classification only by its exact aliases", () => {
+  const nonCritical: Notice = { ...notice, id: "n0", category: "Non-Critical", critical: false };
+  const notices: Notice[] = [
+    nonCritical,
+    { ...nonCritical, id: "n1", body: "Critical conditions are possible." },
+    { ...nonCritical, id: "n2", title: "Critical conditions are possible" },
+    { ...notice, id: "n3", category: "Critical" },
+  ];
+  for (const query of ["critical", "crit"]) {
+    assert.deepEqual(matches(notices, { query }), ["n1", "n2", "n3"]);
+  }
+  for (const query of ["non-critical", "noncritical"]) {
+    assert.deepEqual(matches(notices, { query: `EPNG ${query}` }), ["n0", "n1", "n2"]);
+  }
+});
+
 test("uses inclusive Central dates, excluding adjacent dates and undated notices only when bounded", () => {
   const rows = [
     { id: "before", postedAt: "2026-11-23T05:59:59Z" },

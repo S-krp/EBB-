@@ -16,13 +16,14 @@ export const emptyNoticeFilters: NoticeFilters = {
   range: { start: "", end: "" },
 };
 
-const aliases: Record<Category, string> = {
-  OFO: "operational flow order",
-  "Force Majeure": "fm",
-  Maintenance: "maint",
-  Critical: "crit",
-  "Non-Critical": "noncritical non critical",
+const categorySearchText: Record<Category, string> = {
+  OFO: "OFO operational flow order",
+  "Force Majeure": "Force Majeure fm",
+  Maintenance: "Maintenance maint",
+  Critical: "Critical crit",
+  "Non-Critical": "",
 };
+const nonCriticalTerms = ["non-critical", "noncritical"];
 
 const centralDate = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
@@ -40,9 +41,10 @@ export function indexNotices(notices: Notice[]) {
   return notices.map((notice) => ({
     notice,
     date: postedDate(notice.postedAt),
+    exactTerms: notice.category === "Non-Critical" ? nonCriticalTerms : [],
     text: [
       notice.title, notice.body, notice.id, notice.pipeline, notice.board,
-      notice.category, aliases[notice.category], notice.critical ? "critical" : "",
+      categorySearchText[notice.category], notice.critical ? "critical" : "",
       notice.emergency ? "emergency" : "",
     ].join("\n").toLowerCase(),
   }));
@@ -57,12 +59,12 @@ export function filterNotices(index: ReturnType<typeof indexNotices>, filters: N
   if (hasInvertedRange(range)) return [];
   const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const matches: Notice[] = [];
-  for (const { notice, date, text } of index) {
+  for (const { notice, date, text, exactTerms } of index) {
     if (pipelines.length && !pipelines.includes(notice.board)) continue;
     if (types.length && !types.includes(notice.category)) continue;
     if (criticalOnly && !notice.critical) continue;
     if ((range.start || range.end) && (!date || (range.start && date < range.start) || (range.end && date > range.end))) continue;
-    if (terms.every((term) => text.includes(term))) matches.push(notice);
+    if (terms.every((term) => text.includes(term) || exactTerms.includes(term))) matches.push(notice);
   }
   return matches;
 }
