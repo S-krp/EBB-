@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { and, eq, lt, ne, or, sql } from "drizzle-orm";
+import { and, eq, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { drizzle as drizzleSqlite, type AsyncRemoteCallback } from "drizzle-orm/sqlite-proxy";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -20,7 +21,10 @@ const initialSchema = [
     board TEXT NOT NULL PRIMARY KEY, last_attempt TEXT NOT NULL, last_success TEXT, error TEXT, count INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS sweep_lock (name TEXT NOT NULL PRIMARY KEY, owner TEXT NOT NULL, expires TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS feed_meta (name TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL)`,
 ];
+
+export const retentionDays = 90;
 
 async function connect() {
   const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -81,21 +85,52 @@ function noticeOrder<T>(postedAt: T) {
   return sql`coalesce(${postedAt}, '') desc`;
 }
 
-export async function readFeed() {
+const revisionKey = "revision";
+const cache = globalThis as typeof globalThis & { ebbFeed?: { revision: string; notices: Promise<Notice[]> } };
+
+export async function readFeedVersion() {
   const connection = await database();
-  const [rows, status] = connection.kind === "pg"
+  const [revision, status] = connection.kind === "pg"
     ? await Promise.all([
-      connection.db.select().from(pg.notices).orderBy(noticeOrder(pg.notices.postedAt)),
-      connection.db.select().from(pg.status),
+      connection.db.select({ value: pg.meta.value }).from(pg.meta).where(eq(pg.meta.name, revisionKey)),
+      connection.db.select().from(pg.status).orderBy(pg.status.board),
     ])
     : await Promise.all([
-      connection.db.select().from(sqlite.notices).orderBy(noticeOrder(sqlite.notices.postedAt)).all(),
-      connection.db.select().from(sqlite.status).all(),
+      connection.db.select({ value: sqlite.meta.value }).from(sqlite.meta).where(eq(sqlite.meta.name, revisionKey)).all(),
+      connection.db.select().from(sqlite.status).orderBy(sqlite.status.board).all(),
     ]);
-  const notices: Notice[] = rows.map((row) => ({
+  return { revision: revision[0]?.value ?? "", status };
+}
+
+async function selectNotices() {
+  const connection = await database();
+  const rows = connection.kind === "pg"
+    ? await connection.db.select().from(pg.notices).orderBy(noticeOrder(pg.notices.postedAt))
+    : await connection.db.select().from(sqlite.notices).orderBy(noticeOrder(sqlite.notices.postedAt)).all();
+  return rows.map((row): Notice => ({
     ...row, critical: Boolean(row.critical), emergency: Boolean(row.emergency), tolerances: JSON.parse(row.tolerances),
   }));
-  return { notices, status };
+}
+
+export function readNotices(revision: string) {
+  if (cache.ebbFeed?.revision !== revision) {
+    const notices = selectNotices();
+    cache.ebbFeed = { revision, notices };
+    notices.catch(() => {
+      if (cache.ebbFeed?.notices === notices) delete cache.ebbFeed;
+    });
+  }
+  return cache.ebbFeed.notices;
+}
+
+export async function readFeed() {
+  const { revision, status } = await readFeedVersion();
+  return { notices: await readNotices(revision), status };
+}
+
+function nextRevision() {
+  const value = randomUUID();
+  return { name: revisionKey, value };
 }
 
 function cachedFields(notice: Notice) {
@@ -114,10 +149,22 @@ function cacheDiffers(table: typeof pg.notices | typeof sqlite.notices, row: Ret
   );
 }
 
+function staleNotices(table: typeof pg.notices | typeof sqlite.notices, notices: Notice[], status: BoardStatus) {
+  if (status.error || !notices.length) return null;
+  const cutoff = new Date(Date.parse(status.lastAttempt) - retentionDays * 86_400_000).toISOString();
+  return and(
+    eq(table.board, status.board),
+    notInArray(sql`${table.pipeline} || '|' || ${table.id}`, notices.map((notice) => `${notice.pipeline}|${notice.id}`)),
+    sql`${table.postedAt} < ${cutoff}`,
+    sql`${table.effectiveThrough} < ${cutoff}`,
+  );
+}
+
 export async function saveBoard(notices: Notice[], status: BoardStatus) {
   const connection = await database();
   const rows = notices.map((notice) => ({ ...notice, ...cachedFields(notice) }));
   const { board, lastSuccess, ...result } = status;
+  const revision = nextRevision();
   if (connection.kind === "pg") {
     await connection.db.transaction(async (tx) => {
       for (const row of rows) {
@@ -125,11 +172,15 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
           target: [pg.notices.board, pg.notices.pipeline, pg.notices.id], set: row, setWhere: cacheDiffers(pg.notices, row),
         });
       }
+      const stale = staleNotices(pg.notices, notices, status);
+      if (stale) await tx.delete(pg.notices).where(stale);
       await tx.insert(pg.status).values(status).onConflictDoUpdate({
         target: pg.status.board, set: { ...result, ...(lastSuccess ? { lastSuccess } : {}) },
       });
+      await tx.insert(pg.meta).values(revision).onConflictDoUpdate({ target: pg.meta.name, set: revision });
     });
   } else {
+    const stale = staleNotices(sqlite.notices, notices, status);
     await connection.db.batch([
       connection.db.insert(sqlite.status).values({ board, lastSuccess, ...result }).onConflictDoUpdate({
         target: sqlite.status.board, set: { ...result, ...(lastSuccess ? { lastSuccess } : {}) },
@@ -137,6 +188,8 @@ export async function saveBoard(notices: Notice[], status: BoardStatus) {
       ...rows.map((row) => connection.db.insert(sqlite.notices).values(row).onConflictDoUpdate({
         target: [sqlite.notices.board, sqlite.notices.pipeline, sqlite.notices.id], set: row, setWhere: cacheDiffers(sqlite.notices, row),
       })),
+      ...(stale ? [connection.db.delete(sqlite.notices).where(stale)] : []),
+      connection.db.insert(sqlite.meta).values(revision).onConflictDoUpdate({ target: sqlite.meta.name, set: revision }),
     ]);
   }
 }
@@ -153,7 +206,14 @@ export async function updateCachedNotice(previousHash: string, notice: Notice) {
   const updated = connection.kind === "pg"
     ? await connection.db.update(pg.notices).set(result).where(matches(pg.notices)).returning({ id: pg.notices.id })
     : await connection.db.update(sqlite.notices).set(result).where(matches(sqlite.notices)).returning({ id: sqlite.notices.id }).all();
-  return updated.length > 0;
+  if (!updated.length) return false;
+  const revision = nextRevision();
+  if (connection.kind === "pg") {
+    await connection.db.insert(pg.meta).values(revision).onConflictDoUpdate({ target: pg.meta.name, set: revision });
+  } else {
+    await connection.db.insert(sqlite.meta).values(revision).onConflictDoUpdate({ target: sqlite.meta.name, set: revision }).run();
+  }
+  return true;
 }
 
 export async function claimSweep(owner: string) {
