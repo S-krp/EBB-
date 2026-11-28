@@ -9,6 +9,7 @@ export const boards = {
   AB: { label: "Agua Blanca", name: "Agua Blanca Pipeline", operator: "WhiteWater" },
   MXP: { label: "Matterhorn", name: "Matterhorn Express Pipeline", operator: "WhiteWater" },
   WGS: { label: "Waha Storage", name: "Waha Gas Storage", operator: "WhiteWater" },
+  DE: { label: "Double E", name: "Double E Pipeline", operator: "Summit Midstream" },
   NNG: { label: "Northern Natural", name: "Northern Natural Gas", operator: "Northern Natural Gas" },
 } as const;
 

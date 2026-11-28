@@ -24,6 +24,7 @@ Boards are independent: an upstream failure is shown in Board Status without cle
 | Enbridge LINK | LINK's public current Critical Notices listing and the per-pipeline notice body endpoint |
 | Transwestern | Energy Transfer iPost Critical, Non-Critical, and Planned Service Outage; current public listings |
 | Carlsbad Gateway, Agua Blanca, Matterhorn Express, Waha Gas Storage | WhiteWater's public Quorum Critical and Non-Critical notices with pagination (TSP 701, 401, 502 and 801) |
+| Double E | The public Trellis infopost notice list, read with the anonymous session cookie the home page sets |
 | Northern Natural Gas | Public Critical and Non-Critical notice JSON, with each notice body from its detail endpoint |
 
 No login-walled boards are queried. The scraper captures the published inline text, not binary attachments; the original link is included for verification. Source timestamps without offsets are interpreted as Central Time. Notices are keyed by board, pipeline and notice ID; rows are only rewritten when their SHA-256 hash or derived fields change.

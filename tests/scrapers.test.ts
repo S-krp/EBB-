@@ -179,3 +179,18 @@ test("queries each WhiteWater board by its own Quorum TSP number", async (t) => 
   assert.equal(urls.length, 2);
   assert.ok(urls.every((url) => url.endsWith("GetNoticePostings?tspno=401")));
 });
+
+test("reads Double E notices with the anonymous Trellis session cookie", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string, options?: RequestInit) => {
+    if (url.endsWith("/home/infopost/doublee")) return new Response("<html></html>", { headers: { "Set-Cookie": "JSESSIONID=abc; Path=/; Secure; HttpOnly" } });
+    assert.match(url, /getNotifications\.do\?listOnly=true$/);
+    assert.equal(new Headers(options?.headers).get("Cookie"), "JSESSIONID=abc");
+    assert.equal((options?.body as URLSearchParams).get("tspId"), "2");
+    return Response.json({ dataList: [{ id: "334", category: "Non-Critical", typeDesc: "TSP Capacity Offering", subject: "Open season", startDate: "2026-07-31 14:00:00.0", content: "Bid period extended." }] });
+  });
+  const result = await scrapeBoard("DE");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.notices.length, 1);
+  assert.equal(result.notices[0].postedAt, "2026-07-31T19:00:00.000Z");
+  assert.equal(result.notices[0].body, "Bid period extended.");
+});

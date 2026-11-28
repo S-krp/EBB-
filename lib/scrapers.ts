@@ -16,6 +16,7 @@ const whitewaterTsps = { CG: 701, AB: 401, MXP: 502, WGS: 801 } as const;
 type WhiteWaterBoard = keyof typeof whitewaterTsps;
 const isWhiteWater = (board: BoardId): board is WhiteWaterBoard => board in whitewaterTsps;
 const northern = "https://www.northernnaturalgas.com";
+const trellis = "https://trellis-agora.trellisenergy.com/ptms";
 const linkRouteCodes: Record<string, string> = { AGT: "AG", EHP: "EG", ETNG: "ET", MBHP: "MB", SGSC: "SG" };
 
 export async function mapLimited<T>(items: readonly T[], concurrency: number, run: (item: T) => Promise<void>) {
@@ -250,6 +251,34 @@ async function scrapeNorthern(collect: Collect) {
   }
 }
 
+type DoubleENotice = { id: string; category: string; typeDesc: string; subject: string; startDate: string; content: string | null };
+
+async function scrapeDoubleE(collect: Collect) {
+  await collect("notices", async () => {
+    const home = `${trellis}/home/infopost/doublee`;
+    const cookie = (await request(home)).headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+    if (!cookie.includes("JSESSIONID=")) throw new Error("Double E session cookie not found");
+    const response = await request(`${trellis}/public/infopost/getNotifications.do?listOnly=true`, {
+      method: "POST",
+      headers: { Cookie: cookie, Referer: home, "X-Requested-With": "XMLHttpRequest", "Accept-Language": "en-US" },
+      body: new URLSearchParams({
+        gasDay: DateTime.now().setZone(centralZone).toFormat("MM/dd/yyyy"),
+        "businessPartnerInfo.code": "9999", "businessPartnerInfo.id": "1", backboneId: "22059", tspId: "2",
+      }),
+    });
+    const result = await response.json() as { dataList?: DoubleENotice[] };
+    if (!Array.isArray(result.dataList)) throw new Error("Unexpected Double E notice response");
+    return result.dataList.map((notice) => {
+      const postedAt = noticeDate(notice.startDate.replace(" ", "T"));
+      return {
+        board: "DE" as const, pipeline: boards.DE.name, id: notice.id, title: notice.subject, sourceType: notice.typeDesc,
+        critical: notice.category === "Critical", postedAt, effectiveFrom: postedAt, effectiveThrough: null, sourceUrl: home,
+        ...contentFrom(notice.content ?? ""),
+      };
+    });
+  });
+}
+
 export async function scrapeBoard(board: BoardId): Promise<Result> {
   const notices: RawNotice[] = [];
   const errors: string[] = [];
@@ -264,6 +293,7 @@ export async function scrapeBoard(board: BoardId): Promise<Result> {
   else if (board === "TW") await scrapeTransfer(collect);
   else if (isWhiteWater(board)) await scrapeWhiteWater(board, collect);
   else if (board === "NNG") await scrapeNorthern(collect);
+  else if (board === "DE") await scrapeDoubleE(collect);
   else await scrapeKinder(board, collect);
   return { notices, errors };
 }
