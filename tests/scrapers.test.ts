@@ -157,13 +157,13 @@ test("reads Northern Natural listings and notice bodies from the public notice A
     if (url.endsWith("/notices/critical")) return Response.json({ data: { success: true, data: [notice] } });
     if (url.endsWith("/notices/non-critical")) return Response.json({ data: { success: true, data: [] } });
     assert.match(url, /\/notices\/123$/);
-    return Response.json({ data: { success: true, data: [{ ...notice, noticeHtml: "<p>Force majeure continues.</p>" }] } });
+    return Response.json({ data: { success: true, data: [{ ...notice, noticeHtml: "", noticePointsHtml: "<table><tr><td>388</td><td>GRLKS/NNG CARLTON</td></tr></table>" }] } });
   });
   const result = await scrapeBoard("NNG");
   assert.deepEqual(result.errors, []);
   assert.equal(result.notices.length, 1);
   assert.equal(result.notices[0].critical, true);
-  assert.equal(result.notices[0].body, "Force majeure continues.");
+  assert.match(result.notices[0].body, /388.*GRLKS\/NNG CARLTON/s);
   assert.equal(result.notices[0].postedAt, "2026-11-23T19:10:00.000Z");
   assert.equal(result.notices[0].sourceUrl, "https://www.northernnaturalgas.com/notice-detail/?noticeId=123");
 });

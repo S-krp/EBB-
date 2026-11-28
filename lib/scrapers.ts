@@ -218,7 +218,7 @@ async function scrapeCarlsbad(collect: Collect) {
 }
 
 type NorthernNotice = {
-  noticeId: string; noticeType: string; subject: string; postDateTime: string; effectiveDateTime: string; endDateTime: string; noticeHtml?: string;
+  noticeId: string; noticeType: string; subject: string; postDateTime: string; effectiveDateTime: string; endDateTime: string; noticeHtml?: string; noticePointsHtml?: string;
 };
 
 async function northernList(path: string) {
@@ -232,12 +232,13 @@ async function scrapeNorthern(collect: Collect) {
     await collect(path, async () => {
       await mapLimited(await northernList(path), 4, (notice) => collect(notice.noticeId, async () => {
         const [detail] = await northernList(notice.noticeId);
-        if (!detail) throw new Error("Northern Natural notice body not found");
+        const html = [detail?.noticeHtml, detail?.noticePointsHtml].filter(Boolean).join("\n");
+        if (!html.trim()) throw new Error("Northern Natural notice body not found");
         return [{
           board: "NNG", pipeline: boards.NNG.name, id: notice.noticeId, title: notice.subject, sourceType: notice.noticeType,
           critical: path === "critical", postedAt: noticeDate(notice.postDateTime), effectiveFrom: noticeDate(notice.effectiveDateTime),
           effectiveThrough: noticeDate(notice.endDateTime), sourceUrl: `${northern}/notice-detail/?noticeId=${notice.noticeId}`,
-          ...contentFrom(detail.noticeHtml ?? ""),
+          ...contentFrom(html),
         }];
       }));
       return [];
