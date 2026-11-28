@@ -44,11 +44,12 @@ function Badge({ notice }: { notice: Notice }) {
 }
 
 function Source({ url, title }: { url: string; title: string }) {
+  if (!url) return null;
   return <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open source for ${title}`} className="inline-flex items-center gap-1.5 text-xs font-medium text-soft hover:text-signal">Source <ArrowUpRight size={13} /></a>;
 }
 
 function NoticeBody({ notice }: { notice: Notice }) {
-  if (!notice.bodyBlocks?.length) return <p className="whitespace-pre-wrap wrap-anywhere">{notice.body || "The board did not publish inline notice text. Open the original posting for details or attachments."}</p>;
+  if (!notice.bodyBlocks?.length) return <p className="whitespace-pre-wrap wrap-anywhere">{notice.body || (notice.sourceUrl ? "The board did not publish inline notice text. Open the original posting for details or attachments." : "The board did not publish inline notice text.")}</p>;
   return <NoticeBlocks blocks={notice.bodyBlocks} title={notice.title} />;
 }
 
@@ -119,7 +120,7 @@ function Drawer({ notice, position, total, step, close }: { notice: Notice; posi
           <NoticeBody notice={{ ...notice, bodyBlocks: content.blocks }} />
         </>}
       </div>
-      <a href={notice.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-8 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-bold text-signal hover:bg-inset">Open original posting <ExternalLink size={14} /></a>
+      {notice.sourceUrl && <a href={notice.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-8 inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-bold text-signal hover:bg-inset">Open original posting <ExternalLink size={14} /></a>}
     </div>
   </dialog>;
 }
