@@ -12,6 +12,7 @@ const kinder = "https://pipeline2.kindermorgan.com";
 const transfer = "https://twtransfer.energytransfer.com";
 const enbridge = "https://infopost.enbridge.com";
 const carlsbad = "https://web-prd.myquorumcloud.com/WWMPA1IPWS";
+const northern = "https://www.northernnaturalgas.com";
 const linkRouteCodes: Record<string, string> = { AGT: "AG", EHP: "EG", ETNG: "ET", MBHP: "MB", SGSC: "SG" };
 
 export async function mapLimited<T>(items: readonly T[], concurrency: number, run: (item: T) => Promise<void>) {
@@ -216,6 +217,34 @@ async function scrapeCarlsbad(collect: Collect) {
   }
 }
 
+type NorthernNotice = {
+  noticeId: string; noticeType: string; subject: string; postDateTime: string; effectiveDateTime: string; endDateTime: string; noticeHtml?: string;
+};
+
+async function northernList(path: string) {
+  const result = await (await request(`${northern}/wp-json/api/notices/${path}`)).json() as { data?: { success?: boolean; data?: NorthernNotice[] } };
+  if (!result.data?.success || !Array.isArray(result.data.data)) throw new Error("Unexpected Northern Natural notice response");
+  return result.data.data;
+}
+
+async function scrapeNorthern(collect: Collect) {
+  for (const path of ["critical", "non-critical"]) {
+    await collect(path, async () => {
+      await mapLimited(await northernList(path), 4, (notice) => collect(notice.noticeId, async () => {
+        const [detail] = await northernList(notice.noticeId);
+        if (!detail) throw new Error("Northern Natural notice body not found");
+        return [{
+          board: "NNG", pipeline: boards.NNG.name, id: notice.noticeId, title: notice.subject, sourceType: notice.noticeType,
+          critical: path === "critical", postedAt: noticeDate(notice.postDateTime), effectiveFrom: noticeDate(notice.effectiveDateTime),
+          effectiveThrough: noticeDate(notice.endDateTime), sourceUrl: `${northern}/notice-detail/?noticeId=${notice.noticeId}`,
+          ...contentFrom(detail.noticeHtml ?? ""),
+        }];
+      }));
+      return [];
+    });
+  }
+}
+
 export async function scrapeBoard(board: BoardId): Promise<Result> {
   const notices: RawNotice[] = [];
   const errors: string[] = [];
@@ -229,6 +258,7 @@ export async function scrapeBoard(board: BoardId): Promise<Result> {
   if (board === "LINK") await scrapeLink(collect);
   else if (board === "TW") await scrapeTransfer(collect);
   else if (board === "CG") await scrapeCarlsbad(collect);
+  else if (board === "NNG") await scrapeNorthern(collect);
   else await scrapeKinder(board, collect);
   return { notices, errors };
 }

@@ -150,3 +150,20 @@ test("falls back to the Carlsbad category when the board has no subtype", async 
   assert.equal(result.notices.length, 1);
   assert.equal(result.notices[0].sourceType, "OTHER");
 });
+
+test("reads Northern Natural listings and notice bodies from the public notice API", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    const notice = { noticeId: "123", noticeType: "Force Majeure", subject: "Carlton area", postDateTime: "11/23/2026 01:10 PM", effectiveDateTime: "11/23/2026 01:10 PM", endDateTime: "12/31/2026 08:59 AM" };
+    if (url.endsWith("/notices/critical")) return Response.json({ data: { success: true, data: [notice] } });
+    if (url.endsWith("/notices/non-critical")) return Response.json({ data: { success: true, data: [] } });
+    assert.match(url, /\/notices\/123$/);
+    return Response.json({ data: { success: true, data: [{ ...notice, noticeHtml: "<p>Force majeure continues.</p>" }] } });
+  });
+  const result = await scrapeBoard("NNG");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.notices.length, 1);
+  assert.equal(result.notices[0].critical, true);
+  assert.equal(result.notices[0].body, "Force majeure continues.");
+  assert.equal(result.notices[0].postedAt, "2026-11-23T19:10:00.000Z");
+  assert.equal(result.notices[0].sourceUrl, "https://www.northernnaturalgas.com/notice-detail/?noticeId=123");
+});
