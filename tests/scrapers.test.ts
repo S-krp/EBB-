@@ -172,11 +172,18 @@ test("queries each WhiteWater board by its own Quorum TSP number", async (t) => 
   const urls: string[] = [];
   t.mock.method(globalThis, "fetch", async (url: string) => {
     urls.push(url);
-    return Response.json({ Data: [], Total: 0 });
+    const Data = url.includes("CriticalNoticeCode") || urls.length > 1 ? [] : [{
+      NoticeId: 7, NoticeSubject: "Maintenance", NoticeSubType: null, NoticeCategoryDesc: "Planned Service Outage",
+      NoticeText: "Compressor work.", PostDatetime: "2026-11-27T10:00:00", NoticeEffDatetime: "2026-11-27T10:00:00",
+      NoticeEndDatetime: null, ActionURL: "/WWMPA1IPWS/NoticePosting?NoticeId=7&TspNo=401",
+    }];
+    return Response.json({ Data, Total: Data.length });
   });
   const result = await scrapeBoard("AB");
   assert.deepEqual(result.errors, []);
   assert.equal(urls.length, 2);
+  assert.equal(result.notices.length, 1);
+  assert.equal(result.notices[0].sourceUrl, "");
   assert.ok(urls.every((url) => url.endsWith("GetNoticePostings?tspno=401")));
 });
 

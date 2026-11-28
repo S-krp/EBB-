@@ -23,7 +23,7 @@ Boards are independent: an upstream failure is shown in Board Status without cle
 | EPNG, NGPL, GCX, PHP | Kinder Morgan public DART informational postings: Critical, Non-Critical, and Planned Service Outage; the first window rendered by each board's notice grid |
 | Enbridge LINK | LINK's public current Critical Notices listing and the per-pipeline notice body endpoint |
 | Transwestern | Energy Transfer iPost Critical, Non-Critical, and Planned Service Outage; current public listings |
-| Carlsbad Gateway, Agua Blanca, Matterhorn Express, Waha Gas Storage | WhiteWater's public Quorum Critical and Non-Critical notices with pagination (TSP 701, 401, 502 and 801) |
+| Carlsbad Gateway, Agua Blanca, Matterhorn Express, Waha Gas Storage | WhiteWater's public Quorum Critical and Non-Critical notices with pagination (TSP 701, 401, 502 and 801). Quorum serves notice pages only for Carlsbad, so the other three show no source link |
 | Double E | The public Trellis infopost notice list, read with the anonymous session cookie the home page sets |
 | Northern Natural Gas | Public Critical and Non-Critical notice JSON, with each notice body from its detail endpoint |
 

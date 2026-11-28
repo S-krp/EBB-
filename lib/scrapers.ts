@@ -14,6 +14,8 @@ const enbridge = "https://infopost.enbridge.com";
 const whitewater = "https://web-prd.myquorumcloud.com/WWMPA1IPWS";
 const whitewaterTsps = { CG: 701, AB: 401, MXP: 502, WGS: 801 } as const;
 type WhiteWaterBoard = keyof typeof whitewaterTsps;
+// Quorum serves notice pages only for Carlsbad; the other TSPs return HTTP 500.
+const whitewaterPublicPages = new Set<WhiteWaterBoard>(["CG"]);
 const isWhiteWater = (board: BoardId): board is WhiteWaterBoard => board in whitewaterTsps;
 const northern = "https://www.northernnaturalgas.com";
 const trellis = "https://trellis-agora.trellisenergy.com/ptms";
@@ -211,7 +213,7 @@ async function scrapeWhiteWater(board: WhiteWaterBoard, collect: Collect) {
             board, pipeline: boards[board].name, id: String(notice.NoticeId), title: notice.NoticeSubject,
             sourceType: notice.NoticeSubType || notice.NoticeCategoryDesc || "", critical: critical === "Y", postedAt: noticeDate(notice.PostDatetime),
             effectiveFrom: noticeDate(notice.NoticeEffDatetime), effectiveThrough: noticeDate(notice.NoticeEndDatetime),
-          sourceUrl: new URL(notice.ActionURL, whitewater).href, ...contentFrom(notice.NoticeText ?? ""),
+          sourceUrl: whitewaterPublicPages.has(board) ? new URL(notice.ActionURL, whitewater).href : "", ...contentFrom(notice.NoticeText ?? ""),
           }]);
         }
         if (page * pageSize >= result.Total) break;
