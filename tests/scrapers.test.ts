@@ -167,3 +167,15 @@ test("reads Northern Natural listings and notice bodies from the public notice A
   assert.equal(result.notices[0].postedAt, "2026-11-23T19:10:00.000Z");
   assert.equal(result.notices[0].sourceUrl, "https://www.northernnaturalgas.com/notice-detail/?noticeId=123");
 });
+
+test("queries each WhiteWater board by its own Quorum TSP number", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    urls.push(url);
+    return Response.json({ Data: [], Total: 0 });
+  });
+  const result = await scrapeBoard("AB");
+  assert.deepEqual(result.errors, []);
+  assert.equal(urls.length, 2);
+  assert.ok(urls.every((url) => url.endsWith("GetNoticePostings?tspno=401")));
+});
