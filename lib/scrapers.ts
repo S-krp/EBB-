@@ -11,7 +11,12 @@ type KinderBoard = "EPNG" | "NGPL" | "GCX" | "PHP";
 const kinder = "https://pipeline2.kindermorgan.com";
 const transfer = "https://twtransfer.energytransfer.com";
 const enbridge = "https://infopost.enbridge.com";
-const carlsbad = "https://web-prd.myquorumcloud.com/WWMPA1IPWS";
+const whitewater = "https://web-prd.myquorumcloud.com/WWMPA1IPWS";
+const whitewaterTsps = { CG: 701, AB: 401, MXP: 502, WGS: 801 } as const;
+type WhiteWaterBoard = keyof typeof whitewaterTsps;
+const isWhiteWater = (board: BoardId): board is WhiteWaterBoard => board in whitewaterTsps;
+const northern = "https://www.northernnaturalgas.com";
+const trellis = "https://trellis-agora.trellisenergy.com/ptms";
 const linkRouteCodes: Record<string, string> = { AGT: "AG", EHP: "EG", ETNG: "ET", MBHP: "MB", SGSC: "SG" };
 
 export async function mapLimited<T>(items: readonly T[], concurrency: number, run: (item: T) => Promise<void>) {
@@ -183,37 +188,95 @@ async function scrapeLink(collect: Collect) {
   });
 }
 
-type CarlsbadNotice = {
+type WhiteWaterNotice = {
   NoticeId: number; NoticeSubject: string; NoticeSubType: string | null; NoticeCategoryDesc: string; NoticeText: string;
   PostDatetime: string; NoticeEffDatetime: string; NoticeEndDatetime: string; ActionURL: string;
 };
 
-async function scrapeCarlsbad(collect: Collect) {
+async function scrapeWhiteWater(board: WhiteWaterBoard, collect: Collect) {
+  const tspno = whitewaterTsps[board];
   for (const critical of ["Y", "N"]) {
     await collect(critical === "Y" ? "critical" : "non-critical", async () => {
       const pageSize = 100;
       for (let page = 1; ; page++) {
-        const response = await request(`${carlsbad}/NoticePosting/GetNoticePostings?tspno=701`, {
+        const response = await request(`${whitewater}/NoticePosting/GetNoticePostings?tspno=${tspno}`, {
           method: "POST",
-          headers: { "X-Requested-With": "XMLHttpRequest", Referer: `${carlsbad}/NoticePosting?tspno=701&CriticalNoticeCode=${critical}` },
+          headers: { "X-Requested-With": "XMLHttpRequest", Referer: `${whitewater}/NoticePosting?tspno=${tspno}&CriticalNoticeCode=${critical}` },
           body: new URLSearchParams({ CriticalNoticeCode: critical, page: String(page), pageSize: String(pageSize) }),
         });
-        const result = await response.json() as { Data: CarlsbadNotice[]; Total: number; Errors?: unknown };
-        if (!Array.isArray(result.Data) || !Number.isSafeInteger(result.Total) || result.Errors) throw new Error("Unexpected Carlsbad notice response");
+        const result = await response.json() as { Data: WhiteWaterNotice[]; Total: number; Errors?: unknown };
+        if (!Array.isArray(result.Data) || !Number.isSafeInteger(result.Total) || result.Errors) throw new Error("Unexpected WhiteWater notice response");
         for (const notice of result.Data) {
           await collect(String(notice.NoticeId), async () => [{
-            board: "CG", pipeline: boards.CG.name, id: String(notice.NoticeId), title: notice.NoticeSubject,
+            board, pipeline: boards[board].name, id: String(notice.NoticeId), title: notice.NoticeSubject,
             sourceType: notice.NoticeSubType || notice.NoticeCategoryDesc || "", critical: critical === "Y", postedAt: noticeDate(notice.PostDatetime),
             effectiveFrom: noticeDate(notice.NoticeEffDatetime), effectiveThrough: noticeDate(notice.NoticeEndDatetime),
-          sourceUrl: new URL(notice.ActionURL, carlsbad).href, ...contentFrom(notice.NoticeText ?? ""),
+          sourceUrl: new URL(notice.ActionURL, whitewater).href, ...contentFrom(notice.NoticeText ?? ""),
           }]);
         }
         if (page * pageSize >= result.Total) break;
-        if (!result.Data.length) throw new Error("Carlsbad pagination ended early");
+        if (!result.Data.length) throw new Error("WhiteWater pagination ended early");
       }
       return [];
     });
   }
+}
+
+type NorthernNotice = {
+  noticeId: string; noticeType: string; subject: string; postDateTime: string; effectiveDateTime: string; endDateTime: string; noticeHtml?: string; noticePointsHtml?: string;
+};
+
+async function northernList(path: string) {
+  const result = await (await request(`${northern}/wp-json/api/notices/${path}`)).json() as { data?: { success?: boolean; data?: NorthernNotice[] } };
+  if (!result.data?.success || !Array.isArray(result.data.data)) throw new Error("Unexpected Northern Natural notice response");
+  return result.data.data;
+}
+
+async function scrapeNorthern(collect: Collect) {
+  for (const path of ["critical", "non-critical"]) {
+    await collect(path, async () => {
+      await mapLimited(await northernList(path), 4, (notice) => collect(notice.noticeId, async () => {
+        const [detail] = await northernList(notice.noticeId);
+        const html = [detail?.noticeHtml, detail?.noticePointsHtml].filter(Boolean).join("\n");
+        if (!html.trim()) throw new Error("Northern Natural notice body not found");
+        return [{
+          board: "NNG", pipeline: boards.NNG.name, id: notice.noticeId, title: notice.subject, sourceType: notice.noticeType,
+          critical: path === "critical", postedAt: noticeDate(notice.postDateTime), effectiveFrom: noticeDate(notice.effectiveDateTime),
+          effectiveThrough: noticeDate(notice.endDateTime), sourceUrl: `${northern}/notice-detail/?noticeId=${notice.noticeId}`,
+          ...contentFrom(html),
+        }];
+      }));
+      return [];
+    });
+  }
+}
+
+type DoubleENotice = { id: string | number; category: string; typeDesc: string; subject: string; startDate: string; content: string | null };
+
+async function scrapeDoubleE(collect: Collect) {
+  await collect("notices", async () => {
+    const home = `${trellis}/home/infopost/doublee`;
+    const cookie = (await request(home)).headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+    if (!cookie.includes("JSESSIONID=")) throw new Error("Double E session cookie not found");
+    const response = await request(`${trellis}/public/infopost/getNotifications.do?listOnly=true`, {
+      method: "POST",
+      headers: { Cookie: cookie, Referer: home, "X-Requested-With": "XMLHttpRequest", "Accept-Language": "en-US" },
+      body: new URLSearchParams({
+        gasDay: DateTime.now().setZone(centralZone).toFormat("MM/dd/yyyy"),
+        "businessPartnerInfo.code": "9999", "businessPartnerInfo.id": "1", backboneId: "22059", tspId: "2",
+      }),
+    });
+    const result = await response.json() as { dataList?: DoubleENotice[] };
+    if (!Array.isArray(result.dataList)) throw new Error("Unexpected Double E notice response");
+    return result.dataList.map((notice) => {
+      const postedAt = noticeDate(notice.startDate.replace(" ", "T"));
+      return {
+        board: "DE" as const, pipeline: boards.DE.name, id: String(notice.id), title: notice.subject, sourceType: notice.typeDesc,
+        critical: notice.category === "Critical", postedAt, effectiveFrom: postedAt, effectiveThrough: null, sourceUrl: home,
+        ...contentFrom(notice.content ?? ""),
+      };
+    });
+  });
 }
 
 export async function scrapeBoard(board: BoardId): Promise<Result> {
@@ -228,7 +291,9 @@ export async function scrapeBoard(board: BoardId): Promise<Result> {
   };
   if (board === "LINK") await scrapeLink(collect);
   else if (board === "TW") await scrapeTransfer(collect);
-  else if (board === "CG") await scrapeCarlsbad(collect);
+  else if (isWhiteWater(board)) await scrapeWhiteWater(board, collect);
+  else if (board === "NNG") await scrapeNorthern(collect);
+  else if (board === "DE") await scrapeDoubleE(collect);
   else await scrapeKinder(board, collect);
   return { notices, errors };
 }

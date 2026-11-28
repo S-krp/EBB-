@@ -6,6 +6,11 @@ export const boards = {
   LINK: { label: "Enbridge LINK", name: "Enbridge LINK", operator: "Enbridge" },
   TW: { label: "Transwestern", name: "Transwestern Pipeline", operator: "Energy Transfer" },
   CG: { label: "Carlsbad Gateway", name: "Carlsbad Gateway", operator: "WhiteWater" },
+  AB: { label: "Agua Blanca", name: "Agua Blanca Pipeline", operator: "WhiteWater" },
+  MXP: { label: "Matterhorn", name: "Matterhorn Express Pipeline", operator: "WhiteWater" },
+  WGS: { label: "Waha Storage", name: "Waha Gas Storage", operator: "WhiteWater" },
+  DE: { label: "Double E", name: "Double E Pipeline", operator: "Summit Midstream" },
+  NNG: { label: "Northern Natural", name: "Northern Natural Gas", operator: "Northern Natural Gas" },
 } as const;
 
 export const boardIds = Object.keys(boards) as BoardId[];

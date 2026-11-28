@@ -150,3 +150,47 @@ test("falls back to the Carlsbad category when the board has no subtype", async 
   assert.equal(result.notices.length, 1);
   assert.equal(result.notices[0].sourceType, "OTHER");
 });
+
+test("reads Northern Natural listings and notice bodies from the public notice API", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    const notice = { noticeId: "123", noticeType: "Force Majeure", subject: "Carlton area", postDateTime: "11/23/2026 01:10 PM", effectiveDateTime: "11/23/2026 01:10 PM", endDateTime: "12/31/2026 08:59 AM" };
+    if (url.endsWith("/notices/critical")) return Response.json({ data: { success: true, data: [notice] } });
+    if (url.endsWith("/notices/non-critical")) return Response.json({ data: { success: true, data: [] } });
+    assert.match(url, /\/notices\/123$/);
+    return Response.json({ data: { success: true, data: [{ ...notice, noticeHtml: "", noticePointsHtml: "<table><tr><td>388</td><td>GRLKS/NNG CARLTON</td></tr></table>" }] } });
+  });
+  const result = await scrapeBoard("NNG");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.notices.length, 1);
+  assert.equal(result.notices[0].critical, true);
+  assert.match(result.notices[0].body, /388.*GRLKS\/NNG CARLTON/s);
+  assert.equal(result.notices[0].postedAt, "2026-11-23T19:10:00.000Z");
+  assert.equal(result.notices[0].sourceUrl, "https://www.northernnaturalgas.com/notice-detail/?noticeId=123");
+});
+
+test("queries each WhiteWater board by its own Quorum TSP number", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    urls.push(url);
+    return Response.json({ Data: [], Total: 0 });
+  });
+  const result = await scrapeBoard("AB");
+  assert.deepEqual(result.errors, []);
+  assert.equal(urls.length, 2);
+  assert.ok(urls.every((url) => url.endsWith("GetNoticePostings?tspno=401")));
+});
+
+test("reads Double E notices with the anonymous Trellis session cookie", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url: string, options?: RequestInit) => {
+    if (url.endsWith("/home/infopost/doublee")) return new Response("<html></html>", { headers: { "Set-Cookie": "JSESSIONID=abc; Path=/; Secure; HttpOnly" } });
+    assert.match(url, /getNotifications\.do\?listOnly=true$/);
+    assert.equal(new Headers(options?.headers).get("Cookie"), "JSESSIONID=abc");
+    assert.equal((options?.body as URLSearchParams).get("tspId"), "2");
+    return Response.json({ dataList: [{ id: "334", category: "Non-Critical", typeDesc: "TSP Capacity Offering", subject: "Open season", startDate: "2026-07-31 14:00:00.0", content: "Bid period extended." }] });
+  });
+  const result = await scrapeBoard("DE");
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.notices.length, 1);
+  assert.equal(result.notices[0].postedAt, "2026-07-31T19:00:00.000Z");
+  assert.equal(result.notices[0].body, "Bid period extended.");
+});
