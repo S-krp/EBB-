@@ -251,7 +251,7 @@ async function scrapeNorthern(collect: Collect) {
   }
 }
 
-type DoubleENotice = { id: string; category: string; typeDesc: string; subject: string; startDate: string; content: string | null };
+type DoubleENotice = { id: string | number; category: string; typeDesc: string; subject: string; startDate: string; content: string | null };
 
 async function scrapeDoubleE(collect: Collect) {
   await collect("notices", async () => {
@@ -271,7 +271,7 @@ async function scrapeDoubleE(collect: Collect) {
     return result.dataList.map((notice) => {
       const postedAt = noticeDate(notice.startDate.replace(" ", "T"));
       return {
-        board: "DE" as const, pipeline: boards.DE.name, id: notice.id, title: notice.subject, sourceType: notice.typeDesc,
+        board: "DE" as const, pipeline: boards.DE.name, id: String(notice.id), title: notice.subject, sourceType: notice.typeDesc,
         critical: notice.category === "Critical", postedAt, effectiveFrom: postedAt, effectiveThrough: null, sourceUrl: home,
         ...contentFrom(notice.content ?? ""),
       };
